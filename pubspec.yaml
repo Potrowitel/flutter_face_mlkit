@@ -11,7 +11,7 @@ dependencies:
   flutter:
     sdk: flutter
   rxdart: ^0.22.0
-  path_provider: 1.1.0
+  path_provider: ^1.6.9
   firebase_ml_vision: ^0.10.0
   path_drawing: ^0.4.1
   drawing_animation: ^0.1.3
