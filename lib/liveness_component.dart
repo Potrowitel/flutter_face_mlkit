@@ -317,7 +317,7 @@ class _LivenessComponentState extends State<LivenessComponent>
     }
     await _initializeControllerFuture;
     
-    await _controller.setFlashMode(FlashMode.off);
+    await _controller?.setFlashMode(FlashMode.off);
 
     await _controller!.startImageStream((CameraImage image) {
       if (!mounted) return;
