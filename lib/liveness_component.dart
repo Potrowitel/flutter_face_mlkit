@@ -310,12 +310,14 @@ class _LivenessComponentState extends State<LivenessComponent>
         await ScannerUtils.getCamera(CameraLensDirection.front);
 
     _controller = CameraController(_cameraDescription,
-        Platform.isIOS ? ResolutionPreset.medium : ResolutionPreset.high);
+        Platform.isIOS ? ResolutionPreset.veryHigh : ResolutionPreset.high);
     _initializeControllerFuture = _controller!.initialize();
     if (!mounted) {
       return;
     }
     await _initializeControllerFuture;
+    
+    await _controller?.setFlashMode(FlashMode.off);
 
     await _controller!.startImageStream((CameraImage image) {
       if (!mounted) return;
