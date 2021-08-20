@@ -102,9 +102,6 @@ class _CameraViewState extends State<CameraView> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final deviceRatio = size.width / size.height;
-
     return Container(
       child: FutureBuilder(
         future: _cameraInitializer,

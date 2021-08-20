@@ -92,7 +92,6 @@ class _MyHomePageState extends State<MyHomePage> {
                 RaisedButton(
                     child: Text('Start liveness Camera'),
                     onPressed: () async {
-
                       final random = Random();
 
                       var index = random.nextInt(_livenessStatus.length);
@@ -104,8 +103,9 @@ class _MyHomePageState extends State<MyHomePage> {
                       var result = await Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (context) =>
-                                  CameraLivenessFaceScreen(livenessType: _livenessSelectStatus,)));
+                              builder: (context) => CameraLivenessFaceScreen(
+                                    livenessType: _livenessSelectStatus,
+                                  )));
                       if (result == null) {
                         _scaffoldState.currentState!.showSnackBar(SnackBar(
                           content: Text('Лицо не определено'),
@@ -146,6 +146,7 @@ class _CameraScreenState extends State<CameraScreen> {
           title: Text('MakeCapture'),
         ),
         body: CameraView(
+          cameraLensType: CameraLensType.CAMERA_FRONT,
           onError: print,
           onCapture: (path) {
             if (path != null) {
