@@ -1,15 +1,15 @@
 import 'dart:ui';
 
-import 'package:firebase_ml_vision/firebase_ml_vision.dart';
 import 'package:flutter/material.dart';
+import 'package:google_ml_vision/google_ml_vision.dart';
 import 'package:path_drawing/path_drawing.dart';
 
 class FaceDetectorPainter extends CustomPainter {
   FaceDetectorPainter(this.absoluteImageSize, this.faces, this.oval);
 
   final Size absoluteImageSize;
-  final Face faces;
-  final Rect oval;
+  final Face? faces;
+  final Rect? oval;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -20,10 +20,10 @@ class FaceDetectorPainter extends CustomPainter {
     print(size);
 
     var faceRect = Rect.fromLTRB(
-      faces.boundingBox.left * scaleX,
-      faces.boundingBox.top * scaleY,
-      faces.boundingBox.right * scaleX,
-      faces.boundingBox.bottom * scaleY,
+      faces!.boundingBox.left * scaleX,
+      faces!.boundingBox.top * scaleY,
+      faces!.boundingBox.right * scaleX,
+      faces!.boundingBox.bottom * scaleY,
     );
 
     final Paint paint = Paint()
@@ -31,14 +31,14 @@ class FaceDetectorPainter extends CustomPainter {
       ..strokeWidth = 6.0
       ..color = Colors.white;
 
-    Path _path = Path()..addOval(oval);
+    Path _path = Path()..addOval(oval!);
 
     
 
-    if (faceRect.left > oval.left &&
-        faceRect.top > oval.top &&
-        faceRect.bottom < oval.bottom &&
-        faceRect.right < oval.right) {
+    if (faceRect.left > oval!.left &&
+        faceRect.top > oval!.top &&
+        faceRect.bottom < oval!.bottom &&
+        faceRect.right < oval!.right) {
       paint.color = Colors.transparent;
     } else {
       _path = dashPath(_path,

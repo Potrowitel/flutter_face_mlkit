@@ -7,8 +7,8 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:camera/camera.dart';
-import 'package:firebase_ml_vision/firebase_ml_vision.dart';
 import 'package:flutter/foundation.dart';
+import 'package:google_ml_vision/google_ml_vision.dart';
 
 class ScannerUtils {
   ScannerUtils._();
@@ -22,13 +22,13 @@ class ScannerUtils {
   }
 
   static Future<dynamic> detect({
-    @required CameraImage image,
-    @required Future<dynamic> Function(FirebaseVisionImage image) detectInImage,
-    @required int imageRotation,
+    required CameraImage image,
+    required Future<dynamic> Function(GoogleVisionImage image) detectInImage,
+    required int imageRotation,
   }) async {
     print(image.planes.length);
     return detectInImage(
-      FirebaseVisionImage.fromBytes(
+      GoogleVisionImage.fromBytes(
         _concatenatePlanes(image.planes),
         _buildMetaData(image, _rotationIntToImageRotation(imageRotation)),
       ),
@@ -43,17 +43,17 @@ class ScannerUtils {
     return allBytes.done().buffer.asUint8List();
   }
 
-  static FirebaseVisionImageMetadata _buildMetaData(
+  static GoogleVisionImageMetadata _buildMetaData(
     CameraImage image,
     ImageRotation rotation,
   ) {
-    return FirebaseVisionImageMetadata(
+    return GoogleVisionImageMetadata(
       rawFormat: image.format.raw,
       size: Size(image.width.toDouble(), image.height.toDouble()),
       rotation: rotation,
       planeData: image.planes.map(
         (Plane plane) {
-          return FirebaseVisionImagePlaneMetadata(
+          return GoogleVisionImagePlaneMetadata(
             bytesPerRow: plane.bytesPerRow,
             height: plane.height,
             width: plane.width,

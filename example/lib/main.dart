@@ -25,14 +25,14 @@ class MyApp extends StatelessWidget {
 }
 
 class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key}) : super(key: key);
+  MyHomePage({Key? key}) : super(key: key);
 
   @override
   _MyHomePageState createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  String _photoPath;
+  String? _photoPath;
   var _scaffoldState = GlobalKey<ScaffoldState>();
 
   var _livenessSelectStatus;
@@ -92,7 +92,6 @@ class _MyHomePageState extends State<MyHomePage> {
                 RaisedButton(
                     child: Text('Start liveness Camera'),
                     onPressed: () async {
-
                       final random = Random();
 
                       var index = random.nextInt(_livenessStatus.length);
@@ -104,10 +103,11 @@ class _MyHomePageState extends State<MyHomePage> {
                       var result = await Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (context) =>
-                                  CameraLivenessFaceScreen(livenessType: _livenessSelectStatus,)));
+                              builder: (context) => CameraLivenessFaceScreen(
+                                    livenessType: _livenessSelectStatus,
+                                  )));
                       if (result == null) {
-                        _scaffoldState.currentState.showSnackBar(SnackBar(
+                        _scaffoldState.currentState!.showSnackBar(SnackBar(
                           content: Text('Лицо не определено'),
                         ));
                         return;
@@ -119,7 +119,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       }
                     }),
                 _photoPath != null
-                    ? Image.file(File(_photoPath))
+                    ? Image.file(File(_photoPath!))
                     : SizedBox(
                         height: 0,
                         width: 0,
@@ -146,6 +146,7 @@ class _CameraScreenState extends State<CameraScreen> {
           title: Text('MakeCapture'),
         ),
         body: CameraView(
+          cameraLensType: CameraLensType.CAMERA_FRONT,
           onError: print,
           onCapture: (path) {
             if (path != null) {
@@ -204,9 +205,9 @@ class _CameraFaceScreenState extends State<CameraFaceScreen> {
 }
 
 class CameraLivenessFaceScreen extends StatefulWidget {
-  final FaceLivenessType livenessType;
+  final FaceLivenessType? livenessType;
 
-  CameraLivenessFaceScreen({@required this.livenessType});
+  CameraLivenessFaceScreen({required this.livenessType});
 
   @override
   _CameraLivenessFaceScreen createState() => _CameraLivenessFaceScreen();
@@ -234,7 +235,7 @@ class _CameraLivenessFaceScreen extends State<CameraLivenessFaceScreen> {
       ),
       body: LivenessComponent(
         ovalRect: ovalRect,
-        livenessType: widget.livenessType,
+        livenessType: widget.livenessType!,
         onStepChanged: (FaceStepType faceType) {
           setState(() {
             _faceStepType = faceType;
@@ -268,7 +269,7 @@ class _CameraLivenessFaceScreen extends State<CameraLivenessFaceScreen> {
                       valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
                     ),
                     Text(
-                      'ШАГ 2: ${_livenessTexts[widget.livenessType]}',
+                      'ШАГ 2: ${_livenessTexts[widget.livenessType!]}',
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 18, color: Colors.white),
                     ),
