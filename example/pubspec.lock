@@ -77,7 +77,7 @@ packages:
       path: "."
       ref: "feature/null-safety-migration"
       resolved-ref: "70946ab942dc24248b9e47e03023fb67e34df58c"
-      url: "https://github.com/sn1cka/drawing_animation.git"
+      url: "https://github.com/scroollocker/drawing_animation_fork.git"
     source: git
     version: "1.0.0"
   fake_async:
