@@ -42,7 +42,7 @@ class _CameraViewState extends State<CameraView> {
         _getCameraLensDirection(widget.cameraLensType));
 
     _cameraController = CameraController(cameraDesc,
-        Platform.isIOS ? ResolutionPreset.medium : ResolutionPreset.medium);
+        Platform.isIOS ? ResolutionPreset.veryHigh : ResolutionPreset.veryHigh);
 
     try {
       _cameraInitializer = _cameraController!.initialize();
