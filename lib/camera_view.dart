@@ -1,25 +1,43 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_face_mlkit/utils/loading_overlay.dart';
-import 'package:flutter_face_mlkit/utils/scanner_utils.dart';
+import 'package:flutter_face_mlkit/utils/camera_info.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:flutter_isolate/flutter_isolate.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'package:flutter_face_mlkit/utils/loading_overlay.dart';
+import 'package:flutter_face_mlkit/utils/scanner_utils.dart';
+
 typedef Widget OverlayBuilder(BuildContext context);
+
 typedef Widget CaptureButtonBuilder(
-    BuildContext context, VoidCallback onCapture);
+    BuildContext context, VoidCallback onCapture, CameraInfo cameraInfo);
+
+typedef void CaptureResult(String path, CameraInfo info);
 
 enum CameraLensType { CAMERA_FRONT, CAMERA_BACK }
+
+void _compressFile(Map<String, dynamic> param) async {
+  print('Param - $param');
+  var sendPort = param['port'] as SendPort;
+  var file = await FlutterImageCompress.compressAndGetFile(
+      param['path']!, param['outPath']!,
+      quality: 75);
+
+  sendPort.send(file!.path);
+}
 
 class CameraView extends StatefulWidget {
   final CameraLensType cameraLensType;
   final OverlayBuilder? overlayBuilder;
   final CaptureButtonBuilder? captureButtonBuilder;
   final ValueChanged? onError;
-  final ValueChanged? onCapture;
+  final CaptureResult? onCapture;
 
   CameraView(
       {this.cameraLensType = CameraLensType.CAMERA_BACK,
@@ -32,20 +50,29 @@ class CameraView extends StatefulWidget {
   _CameraViewState createState() => _CameraViewState();
 }
 
-class _CameraViewState extends State<CameraView> {
+class _CameraViewState extends State<CameraView> with WidgetsBindingObserver {
   CameraController? _cameraController;
   Future? _cameraInitializer;
   bool _isTakePhoto = false;
 
-  Future<void> _initializeCamera() async {
-    CameraDescription cameraDesc = await ScannerUtils.getCamera(
-        _getCameraLensDirection(widget.cameraLensType));
+  Future<void> _initializeCamera(Future? future) async {
+    if (future == null) {
+      try {
+        CameraDescription cameraDesc = await ScannerUtils.getCamera(
+            _getCameraLensDirection(widget.cameraLensType));
 
-    _cameraController = CameraController(cameraDesc,
-        Platform.isIOS ? ResolutionPreset.veryHigh : ResolutionPreset.veryHigh);
+        _cameraController = CameraController(
+            cameraDesc,
+            Platform.isIOS
+                ? ResolutionPreset.veryHigh
+                : ResolutionPreset.veryHigh);
+      } catch (err) {
+        print(err);
+      }
+    }
 
     try {
-      _cameraInitializer = _cameraController!.initialize();
+      _cameraInitializer = future ?? _cameraController!.initialize();
 
       await _cameraInitializer;
     } catch (err) {
@@ -66,17 +93,26 @@ class _CameraViewState extends State<CameraView> {
       var imgPath = '${tmpDir.path}/${rStr}_photo.jpg';
       var imgCopressedPath = '${tmpDir.path}/${rStr}_compressed_photo.jpg';
 
+      ReceivePort _port = ReceivePort();
+
       await Future.delayed(Duration(milliseconds: 300));
       var imgFile = await _cameraController!.takePicture();
       await imgFile.saveTo(imgPath);
       LoadingOverlay.showLoadingOverlay(context);
-      var compressedFile = await FlutterImageCompress.compressAndGetFile(
-          imgPath, imgCopressedPath,
-          quality: 75);
+
+      await FlutterIsolate.spawn<Map<String, dynamic>>(_compressFile, {
+        'path': imgPath,
+        'outPath': imgCopressedPath,
+        'port': _port.sendPort
+      });
+
+      String compressedFile = await _port.first;
+
+      _port.close();
 
       LoadingOverlay.removeLoadingOverlay();
       _isTakePhoto = false;
-      _onCapture(compressedFile!.path);
+      _onCapture(compressedFile);
     } catch (err) {
       _isTakePhoto = false;
       _onError(err);
@@ -85,9 +121,10 @@ class _CameraViewState extends State<CameraView> {
 
   @override
   void initState() {
+    WidgetsBinding.instance?.addObserver(this);
     super.initState();
     try {
-      _initializeCamera();
+      _initializeCamera(null);
     } catch (err) {
       _onError(err);
     }
@@ -95,13 +132,37 @@ class _CameraViewState extends State<CameraView> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance?.removeObserver(this);
     LoadingOverlay.removeLoadingOverlay();
+
     _cameraController?.dispose();
     super.dispose();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // App state changed before we got the chance to initialize.
+    if (_cameraController == null ||
+        _cameraController?.value.isInitialized == false) {
+      return;
+    }
+    if (state == AppLifecycleState.inactive) {
+      _cameraController?.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      if (_cameraController != null) {
+        _cameraInitializer = _cameraController!.initialize();
+
+        _initializeCamera(_cameraInitializer);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    var cameraInfo = CameraInfo(
+        widget.cameraLensType,
+        _cameraController?.value.aspectRatio ?? 1.0,
+        _cameraController?.value.previewSize ?? Size(1, 1));
     return Container(
       child: FutureBuilder(
         future: _cameraInitializer,
@@ -116,7 +177,8 @@ class _CameraViewState extends State<CameraView> {
                     left: 0,
                     right: 0,
                     bottom: 20,
-                    child: _captureButtonBuilder(context, _takePhoto))
+                    child:
+                        _captureButtonBuilder(context, _takePhoto, cameraInfo))
               ],
             );
           }
@@ -150,9 +212,10 @@ class _CameraViewState extends State<CameraView> {
     }
   }
 
-  Widget _captureButtonBuilder(BuildContext context, VoidCallback onCapture) {
+  Widget _captureButtonBuilder(
+      BuildContext context, VoidCallback onCapture, CameraInfo cameraInfo) {
     if (widget.captureButtonBuilder != null) {
-      return widget.captureButtonBuilder!(context, onCapture);
+      return widget.captureButtonBuilder!(context, onCapture, cameraInfo);
     } else {
       return SizedBox(
         height: 0,
@@ -168,9 +231,11 @@ class _CameraViewState extends State<CameraView> {
   }
 
   void _onCapture(path) {
-    if (widget.onCapture != null) {
-      widget.onCapture!(path);
-    }
+    var cameraInfo = CameraInfo(
+        widget.cameraLensType,
+        _cameraController?.value.aspectRatio ?? 1.0,
+        _cameraController?.value.previewSize ?? Size(1, 1));
+    widget.onCapture?.call(path, cameraInfo);
   }
 
   CameraLensDirection _getCameraLensDirection(CameraLensType type) {

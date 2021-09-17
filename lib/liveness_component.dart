@@ -1,14 +1,19 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:camera/camera.dart';
 import 'package:drawing_animation/drawing_animation.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_face_mlkit/camera_view.dart';
+import 'package:flutter_face_mlkit/utils/camera_info.dart';
 import 'package:flutter_face_mlkit/utils/face_detector_painter.dart';
 import 'package:flutter_face_mlkit/utils/loading_overlay.dart';
 import 'package:flutter_face_mlkit/utils/oval_clipper.dart';
 import 'package:flutter_face_mlkit/utils/scanner_utils.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:flutter_isolate/flutter_isolate.dart';
 import 'package:google_ml_vision/google_ml_vision.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -25,16 +30,27 @@ enum FaceLivenessType {
   FACE_ANGLE_BOTTOM
 }
 
+void _compressFile(Map<String, dynamic> param) async {
+  var sendPort = param['port'] as SendPort;
+  var file = await FlutterImageCompress.compressAndGetFile(
+      param['path']!, param['outPath']!,
+      quality: 75);
+
+  sendPort.send(file!.path);
+}
+
+typedef void CaptureResult(String? path, CameraInfo info);
+
 class LivenessComponent extends StatefulWidget {
   final Rect? ovalRect;
 
   final ValueChanged<double>? onLivenessPercentChange;
   final ValueChanged<FaceStepType>? onStepChanged;
-  final ValueChanged<String?>? onCapturePhoto;
+  final CaptureResult? onCapturePhoto;
 
   final FaceLivenessType livenessType;
 
-  final Widget Function(BuildContext)? infoBlockBuilder;
+  final Widget Function(BuildContext, CameraInfo)? infoBlockBuilder;
 
   LivenessComponent(
       {Key? key,
@@ -51,7 +67,7 @@ class LivenessComponent extends StatefulWidget {
 }
 
 class _LivenessComponentState extends State<LivenessComponent>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   GlobalKey _keyBuilder = GlobalKey();
   Future<void>? _initializeControllerFuture;
   CameraController? _controller;
@@ -85,17 +101,23 @@ class _LivenessComponentState extends State<LivenessComponent>
   }
 
   void _onCapturePhoto(String? path) {
+    var cameraInfo = CameraInfo(
+        CameraLensType.CAMERA_FRONT,
+        _controller?.value.aspectRatio ?? 1.0,
+        _controller?.value.previewSize ?? Size(1, 1));
     if (widget.onCapturePhoto != null) {
-      widget.onCapturePhoto!(path);
+      widget.onCapturePhoto?.call(path, cameraInfo);
     }
   }
 
   Widget _infoBlockBuilder(BuildContext context) {
-    if (widget.infoBlockBuilder != null) {
-      return widget.infoBlockBuilder!(context);
-    } else {
-      return SizedBox(height: 0, width: 0);
-    }
+    var cameraInfo = CameraInfo(
+        CameraLensType.CAMERA_FRONT,
+        _controller?.value.aspectRatio ?? 1.0,
+        _controller?.value.previewSize ?? Size(1, 1));
+
+    return widget.infoBlockBuilder?.call(context, cameraInfo) ??
+        SizedBox(height: 0, width: 0);
   }
 
   bool _isShowOvalArea() {
@@ -235,29 +257,38 @@ class _LivenessComponentState extends State<LivenessComponent>
         var imgFile = await _controller!.takePicture();
         await imgFile.saveTo(imgPath);
         LoadingOverlay.showLoadingOverlay(context);
-        var compressedFile = await FlutterImageCompress.compressAndGetFile(
-            imgPath, imgCopressedPath,
-            quality: 75);
+
+        var _port = ReceivePort();
+
+        await FlutterIsolate.spawn<Map<String, dynamic>>(_compressFile, {
+          'path': imgPath,
+          'outPath': imgCopressedPath,
+          'port': _port.sendPort
+        });
+
+        String compressedFile = await _port.first;
+
+        _port.close();
 
         try {
           List<Face> _faces = await _faceDetector!
-              .processImage(GoogleVisionImage.fromFile(compressedFile!));
+              .processImage(GoogleVisionImage.fromFilePath(compressedFile));
           var _faceForCheck = _faces.first;
           if (_isFaceInOval(_faceForCheck) == true) {
-            _onCapturePhoto(compressedFile.path);
+            _onCapturePhoto(compressedFile);
           } else {
             _onCapturePhoto(null);
           }
-        } catch (_) {
+        } catch (err) {
+          print(err);
           _onCapturePhoto(null);
         }
         LoadingOverlay.removeLoadingOverlay();
       } catch (err) {
         LoadingOverlay.removeLoadingOverlay();
         print(err);
-        _controller?.dispose();
+
         _isTakePhoto = false;
-        _initializeCamera();
       }
     }
   }
@@ -284,7 +315,40 @@ class _LivenessComponentState extends State<LivenessComponent>
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // App state changed before we got the chance to initialize.
+    if (_controller == null || _controller?.value.isInitialized == false) {
+      return;
+    }
+    if (state == AppLifecycleState.inactive) {
+      print('I am INACTIVE');
+      try {
+        print('Dispose detector');
+        _faceDetector?.close().then((_) {
+          print('Dispose stream');
+          _controller?.stopImageStream().then((_) {
+            print('Dispose controller');
+
+            _controller?.dispose();
+          });
+        });
+        _controller = null;
+      } catch (err) {
+        print(err);
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      print('I am RESUME');
+      if (_controller != null) {
+        _initializeControllerFuture = _controller!.initialize();
+
+        _initializeCamera(_initializeControllerFuture);
+      }
+    }
+  }
+
+  @override
   void initState() {
+    WidgetsBinding.instance?.addObserver(this);
     super.initState();
 
     _customOvalRect = widget.ovalRect ?? Rect.fromLTWH(50, 50, 250, 350);
@@ -302,56 +366,94 @@ class _LivenessComponentState extends State<LivenessComponent>
 
     _faceDetector = GoogleVision.instance.faceDetector();
 
-    _initializeCamera();
+    _initializeCamera(null);
   }
 
-  Future<void> _initializeCamera() async {
-    _cameraDescription =
-        await ScannerUtils.getCamera(CameraLensDirection.front);
+  Future<void> _initializeCamera(Future? init) async {
+    print('Init camera');
+    await Future.delayed(Duration(seconds: 1));
+    if (init == null) {
+      try {
+        print('Init description');
+        _cameraDescription =
+            await ScannerUtils.getCamera(CameraLensDirection.front);
 
-    _controller = CameraController(_cameraDescription,
-        Platform.isIOS ? ResolutionPreset.veryHigh : ResolutionPreset.high);
+        print('Create controller');
+        _controller = CameraController(_cameraDescription,
+            Platform.isIOS ? ResolutionPreset.veryHigh : ResolutionPreset.high);
 
-    _initializeControllerFuture = _controller!.initialize();
+        print('Create init controller');
+        _initializeControllerFuture = _controller!.initialize();
+      } catch (err) {
+        print(err);
+      }
+    }
+    // 21307198500031
 
     if (!mounted) {
       return;
     }
+    print('Before init');
     await _initializeControllerFuture;
+    print('After init');
 
-    await _controller!.startImageStream((CameraImage image) {
-      if (!mounted) return;
-      if (_isDetecting) return;
-
-      _isDetecting = true;
-
-      ScannerUtils.detect(
-        image: image,
-        detectInImage: _faceDetector!.processImage,
-        imageRotation: _cameraDescription.sensorOrientation,
-      ).then(
-        (dynamic results) {
-          if (!mounted) return;
-
-          List<Face> faces = results as List<Face>;
-          print('Faces = ' + faces.length.toString());
-          try {
-            var _face = faces.first;
-            _faceProcessing(_face);
-          } catch (_) {}
-        },
-      ).whenComplete(() => _isDetecting = false);
-    });
+    if (!mounted) return;
     setState(() {});
+
+    try {
+      print('Start stream');
+      await Future.delayed(Duration(milliseconds: 200));
+      await _controller?.startImageStream((CameraImage image) {
+        if (!mounted) return;
+        if (_isDetecting) return;
+
+        _isDetecting = true;
+
+        print('Detect frame ---->');
+        ScannerUtils.detect(
+          image: image,
+          detectInImage: _faceDetector!.processImage,
+          imageRotation: _cameraDescription.sensorOrientation,
+        ).then(
+          (dynamic results) {
+            if (!mounted) return;
+
+            List<Face> faces = results as List<Face>;
+            print('Face detected ---->  ${faces.length.toString()}');
+            try {
+              var _face = faces.first;
+              _faceProcessing(_face);
+            } catch (err) {
+              print(err);
+            }
+          },
+        ).whenComplete(() => _isDetecting = false);
+      });
+    } catch (err) {
+      print(err);
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance?.removeObserver(this);
     LoadingOverlay.removeLoadingOverlay();
-    _faceDetector?.close().then((_) {
-      _controller?.dispose();
-    });
+    print('Dispose');
+    try {
+      print('Dispose detector');
+      _faceDetector?.close().then((_) {
+        print('Dispose image stream');
+        _controller?.stopImageStream().then((_) {
+          print('Dispose controller');
+          _controller?.dispose();
+        });
+      });
+    } catch (err) {
+      print(err);
+    }
+
     _successImageAnimationController?.dispose();
+
     super.dispose();
   }
 
@@ -359,6 +461,7 @@ class _LivenessComponentState extends State<LivenessComponent>
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final deviceRatio = size.width / size.height;
+
     return Container(
         child: FutureBuilder<void>(
       key: _keyBuilder,

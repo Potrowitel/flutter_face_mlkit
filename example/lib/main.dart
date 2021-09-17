@@ -148,7 +148,7 @@ class _CameraScreenState extends State<CameraScreen> {
         body: CameraView(
           cameraLensType: CameraLensType.CAMERA_FRONT,
           onError: print,
-          onCapture: (path) {
+          onCapture: (path, _) {
             if (path != null) {
               print(path);
               Navigator.pop(context, path);
@@ -158,7 +158,7 @@ class _CameraScreenState extends State<CameraScreen> {
             return Center(
                 child: Container(color: Colors.green, width: 50, height: 50));
           },
-          captureButtonBuilder: (context, onCapture) {
+          captureButtonBuilder: (context, onCapture, _) {
             return Container(
                 color: Colors.red,
                 child: Center(
@@ -246,7 +246,7 @@ class _CameraLivenessFaceScreen extends State<CameraLivenessFaceScreen> {
           setState(() => _livenessPercentage = percentage / 100);
           print('LIVENESS PERCENTAGE = $percentage');
         },
-        infoBlockBuilder: (BuildContext context) {
+        infoBlockBuilder: (BuildContext context, _) {
           switch (_faceStepType) {
             case FaceStepType.FACE_STEP_CAPTURING:
               {
@@ -288,7 +288,7 @@ class _CameraLivenessFaceScreen extends State<CameraLivenessFaceScreen> {
               }
           }
         },
-        onCapturePhoto: (path) {
+        onCapturePhoto: (path, _) {
           Navigator.pop(context, path);
         },
       ),
