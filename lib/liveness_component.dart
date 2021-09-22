@@ -6,6 +6,8 @@ import 'package:camera/camera.dart';
 import 'package:drawing_animation/drawing_animation.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+
 import 'package:flutter_face_mlkit/camera_view.dart';
 import 'package:flutter_face_mlkit/utils/camera_info.dart';
 import 'package:flutter_face_mlkit/utils/face_detector_painter.dart';
@@ -15,6 +17,7 @@ import 'package:flutter_face_mlkit/utils/scanner_utils.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_isolate/flutter_isolate.dart';
 import 'package:google_ml_vision/google_ml_vision.dart';
+
 import 'package:path_provider/path_provider.dart';
 
 enum FaceStepType {
@@ -47,6 +50,7 @@ class LivenessComponent extends StatefulWidget {
   final ValueChanged<double>? onLivenessPercentChange;
   final ValueChanged<FaceStepType>? onStepChanged;
   final CaptureResult? onCapturePhoto;
+  final CaptureResult? onActionPhoto;
 
   final FaceLivenessType livenessType;
 
@@ -59,6 +63,7 @@ class LivenessComponent extends StatefulWidget {
       this.onLivenessPercentChange,
       this.infoBlockBuilder,
       this.onCapturePhoto,
+      this.onActionPhoto,
       this.onStepChanged})
       : super(key: key);
 
@@ -69,6 +74,7 @@ class LivenessComponent extends StatefulWidget {
 class _LivenessComponentState extends State<LivenessComponent>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   GlobalKey _keyBuilder = GlobalKey();
+  static GlobalKey previewContainer = new GlobalKey();
   Future<void>? _initializeControllerFuture;
   CameraController? _controller;
 
@@ -89,15 +95,11 @@ class _LivenessComponentState extends State<LivenessComponent>
   FaceStepType _faceStepType = FaceStepType.FACE_STEP_FACEDETECTION;
 
   void _onPercentChange(double percent) {
-    if (widget.onLivenessPercentChange != null) {
-      widget.onLivenessPercentChange!(percent);
-    }
+    widget.onLivenessPercentChange?.call(percent);
   }
 
   void _onStepChange(FaceStepType type) {
-    if (widget.onStepChanged != null) {
-      widget.onStepChanged!(type);
-    }
+    widget.onStepChanged?.call(type);
   }
 
   void _onCapturePhoto(String? path) {
@@ -105,9 +107,15 @@ class _LivenessComponentState extends State<LivenessComponent>
         CameraLensType.CAMERA_FRONT,
         _controller?.value.aspectRatio ?? 1.0,
         _controller?.value.previewSize ?? Size(1, 1));
-    if (widget.onCapturePhoto != null) {
-      widget.onCapturePhoto?.call(path, cameraInfo);
-    }
+    widget.onCapturePhoto?.call(path, cameraInfo);
+  }
+
+  void _onActionPhoto(String? path) {
+    var cameraInfo = CameraInfo(
+        CameraLensType.CAMERA_FRONT,
+        _controller?.value.aspectRatio ?? 1.0,
+        _controller?.value.previewSize ?? Size(1, 1));
+    widget.onActionPhoto?.call(path, cameraInfo);
   }
 
   Widget _infoBlockBuilder(BuildContext context) {
@@ -174,73 +182,115 @@ class _LivenessComponentState extends State<LivenessComponent>
   }
 
   Future<void> _faceDetectingStep(Face face) async {
-    if (face != null) {
+    setState(() {
+      _faceStepType = FaceStepType.FACE_STEP_LIVENESS;
+      _onStepChange(_faceStepType);
+    });
+  }
+
+  Future<void> _faceLivenessStep(Face face) async {
+    var _faceAngleX = face.headEulerAngleY;
+    var _faceAngleY = face.headEulerAngleZ;
+    var _faceEyeLeft = face.leftEyeOpenProbability;
+    var _faceEyeRight = face.rightEyeOpenProbability;
+
+    print(
+        '_FACE X = $_faceAngleX; _FACE Z = $_faceAngleY; _FACE LEYE = $_faceEyeLeft; _FACE_REYE = $_faceEyeRight;');
+
+    double? _faceAngle = 0.0;
+    if (widget.livenessType == FaceLivenessType.FACE_ANGLE_RIGHT) {
+      _faceAngle = Platform.isAndroid
+          ? _faceAngleX! < 0.0
+              ? _faceAngleX
+              : 0.0
+          : _faceAngleX! > 0.0
+              ? _faceAngleX
+              : 0.0;
+    } else if (widget.livenessType == FaceLivenessType.FACE_ANGLE_LEFT) {
+      _faceAngle = Platform.isAndroid
+          ? _faceAngleX! > 0.0
+              ? _faceAngleX
+              : 0.0
+          : _faceAngleX! < 0.0
+              ? _faceAngleX
+              : 0.0;
+    } else if (widget.livenessType == FaceLivenessType.FACE_ANGLE_BOTTOM) {
+      _faceAngle = _faceAngleY! > 0.0 ? _faceAngleY * 50 / 16.0 : 0.0;
+    } else if (widget.livenessType == FaceLivenessType.FACE_ANGLE_BOTTOM) {
+      _faceAngle = _faceAngleY! < 0.0 ? _faceAngleY * 50 / 16.0 : 0.0;
+    }
+
+    _faceAngle = _faceAngle.abs();
+
+    _faceAngle = _faceAngle > 50.0 ? 50.0 : _faceAngle;
+    double _facePercentage = _faceAngle * 100.0 / 50.0;
+
+    _onPercentChange(_facePercentage);
+    if (_facePercentage > 80.0) {
+      await _captureAction();
       setState(() {
-        _faceStepType = FaceStepType.FACE_STEP_LIVENESS;
+        _faceStepType = FaceStepType.FACE_STEP_CAPTURING;
         _onStepChange(_faceStepType);
       });
     }
   }
 
-  Future<void> _faceLivenessStep(Face face) async {
-    if (face != null) {
-      var _faceAngleX = face.headEulerAngleY;
-      var _faceAngleY = face.headEulerAngleZ;
-      var _faceEyeLeft = face.leftEyeOpenProbability;
-      var _faceEyeRight = face.rightEyeOpenProbability;
+  Future<void> _captureAction() async {
+    try {
+      await _controller?.stopImageStream();
 
-      print(
-          '_FACE X = $_faceAngleX; _FACE Z = $_faceAngleY; _FACE LEYE = $_faceEyeLeft; _FACE_REYE = $_faceEyeRight;');
+      var tmpDir = await getTemporaryDirectory();
+      var rStr = DateTime.now().microsecondsSinceEpoch.toString();
+      var imgPath = '${tmpDir.path}/${rStr}_liveness.jpg';
+      var imgCopressedPath = '${tmpDir.path}/${rStr}_compressed_liveness.jpg';
 
-      double? _faceAngle = 0.0;
-      if (widget.livenessType == FaceLivenessType.FACE_ANGLE_RIGHT) {
-        _faceAngle = Platform.isAndroid
-            ? _faceAngleX! < 0.0
-                ? _faceAngleX
-                : 0.0
-            : _faceAngleX! > 0.0
-                ? _faceAngleX
-                : 0.0;
-      } else if (widget.livenessType == FaceLivenessType.FACE_ANGLE_LEFT) {
-        _faceAngle = Platform.isAndroid
-            ? _faceAngleX! > 0.0
-                ? _faceAngleX
-                : 0.0
-            : _faceAngleX! < 0.0
-                ? _faceAngleX
-                : 0.0;
-      } else if (widget.livenessType == FaceLivenessType.FACE_ANGLE_BOTTOM) {
-        _faceAngle = _faceAngleY! > 0.0 ? _faceAngleY * 50 / 16.0 : 0.0;
-      } else if (widget.livenessType == FaceLivenessType.FACE_ANGLE_BOTTOM) {
-        _faceAngle = _faceAngleY! < 0.0 ? _faceAngleY * 50 / 16.0 : 0.0;
-      }
+      // RenderRepaintBoundary boundary = previewContainer.currentContext!
+      //     .findRenderObject() as RenderRepaintBoundary;
+      // ui.Image? image = await boundary.toImage();
 
-      _faceAngle = _faceAngle.abs();
+      // ByteData? byteData =
+      //     await image?.toByteData(format: ui.ImageByteFormat.png);
+      // Uint8List? pngBytes = byteData?.buffer.asUint8List();
+      // print(pngBytes);
+      // File imgFile = new File(imgPath);
+      // imgFile.writeAsBytes(pngBytes!);
 
-      _faceAngle = _faceAngle > 50.0 ? 50.0 : _faceAngle;
-      double _facePercentage = _faceAngle * 100.0 / 50.0;
+      // setState(() {});
 
-      _onPercentChange(_facePercentage);
-      if (_facePercentage > 80.0) {
-        setState(() {
-          _faceStepType = FaceStepType.FACE_STEP_CAPTURING;
-          _onStepChange(_faceStepType);
-        });
-      }
-    } else {
-      _onPercentChange(0);
+      await Future.delayed(Duration(milliseconds: 10));
+      var imgFile = await _controller!.takePicture();
+      await imgFile.saveTo(imgPath);
+      LoadingOverlay.showLoadingOverlay(context);
+
+      var _port = ReceivePort();
+
+      await FlutterIsolate.spawn<Map<String, dynamic>>(_compressFile, {
+        'path': imgPath,
+        'outPath': imgCopressedPath,
+        'port': _port.sendPort
+      });
+
+      String compressedFile = await _port.first;
+
+      _port.close();
+      await _controller?.startImageStream(_streamWorker);
+      _onActionPhoto(compressedFile);
+    } catch (err) {
+      print(err);
+      _onActionPhoto(null);
+    } finally {
+      LoadingOverlay.removeLoadingOverlay();
     }
   }
 
   Future<void> _faceCapturingStep(Face face) async {
     if (_isTakePhoto == true) return;
-    if (face != null) {
-      setState(() {
-        _face = face;
-      });
-    }
 
-    if (face != null && _isFaceInOval(face) == true) {
+    setState(() {
+      _face = face;
+    });
+
+    if (_isFaceInOval(face) == true) {
       _isTakePhoto = true;
       try {
         await _controller!.stopImageStream();
@@ -346,6 +396,43 @@ class _LivenessComponentState extends State<LivenessComponent>
     }
   }
 
+  void _streamWorker(CameraImage image) {
+    if (!mounted) return;
+    if (_isDetecting) return;
+
+    _isDetecting = true;
+
+    print('Detect frame ---->');
+    ScannerUtils.detect(
+      image: image,
+      detectInImage: _faceDetector!.processImage,
+      imageRotation: _cameraDescription.sensorOrientation,
+    ).then(
+      (dynamic results) {
+        if (!mounted) return;
+
+        List<Face> faces = results as List<Face>;
+        print('Face detected ---->  ${faces.length.toString()}');
+        try {
+          var _face = faces.first;
+          // if (_true == false) {
+          //   _true = true;
+          //   var bytes = ScannerUtils.concatenatePlanes(image.planes);
+          //   getTemporaryDirectory().then((value) {
+          //     var rStr = DateTime.now().microsecondsSinceEpoch.toString();
+          //     var imgPath = '${value.path}/${rStr}_ass.jpg';
+          //     File(imgPath).writeAsBytesSync(bytes);
+          //     _onActionPhoto(imgPath);
+          //   });
+          // }
+          _faceProcessing(_face);
+        } catch (err) {
+          print(err);
+        }
+      },
+    ).whenComplete(() => _isDetecting = false);
+  }
+
   @override
   void initState() {
     WidgetsBinding.instance?.addObserver(this);
@@ -379,8 +466,11 @@ class _LivenessComponentState extends State<LivenessComponent>
             await ScannerUtils.getCamera(CameraLensDirection.front);
 
         print('Create controller');
-        _controller = CameraController(_cameraDescription,
-            Platform.isIOS ? ResolutionPreset.veryHigh : ResolutionPreset.high);
+        _controller = CameraController(
+          _cameraDescription,
+          Platform.isIOS ? ResolutionPreset.veryHigh : ResolutionPreset.high,
+          // imageFormatGroup: ImageFormatGroup.jpeg,
+        );
 
         print('Create init controller');
         _initializeControllerFuture = _controller!.initialize();
@@ -403,32 +493,7 @@ class _LivenessComponentState extends State<LivenessComponent>
     try {
       print('Start stream');
       await Future.delayed(Duration(milliseconds: 200));
-      await _controller?.startImageStream((CameraImage image) {
-        if (!mounted) return;
-        if (_isDetecting) return;
-
-        _isDetecting = true;
-
-        print('Detect frame ---->');
-        ScannerUtils.detect(
-          image: image,
-          detectInImage: _faceDetector!.processImage,
-          imageRotation: _cameraDescription.sensorOrientation,
-        ).then(
-          (dynamic results) {
-            if (!mounted) return;
-
-            List<Face> faces = results as List<Face>;
-            print('Face detected ---->  ${faces.length.toString()}');
-            try {
-              var _face = faces.first;
-              _faceProcessing(_face);
-            } catch (err) {
-              print(err);
-            }
-          },
-        ).whenComplete(() => _isDetecting = false);
-      });
+      await _controller?.startImageStream(_streamWorker);
     } catch (err) {
       print(err);
     }
@@ -475,7 +540,10 @@ class _LivenessComponentState extends State<LivenessComponent>
           );
           return Stack(
             children: <Widget>[
-              Center(child: CameraPreview(_controller!)),
+              Center(
+                  child: RepaintBoundary(
+                      key: previewContainer,
+                      child: CameraPreview(_controller!))),
               _isShowOvalArea()
                   ? CustomPaint(
                       foregroundPainter: FaceDetectorPainter(

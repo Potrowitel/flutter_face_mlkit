@@ -33,6 +33,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   String? _photoPath;
+  String? _photoAction;
   var _scaffoldState = GlobalKey<ScaffoldState>();
 
   var _livenessSelectStatus;
@@ -112,9 +113,10 @@ class _MyHomePageState extends State<MyHomePage> {
                         ));
                         return;
                       }
-                      if (result != null && result is String) {
+                      if (result != null && result is List<String?>) {
                         setState(() {
-                          _photoPath = result;
+                          _photoPath = result[0];
+                          _photoAction = result[1];
                         });
                       }
                     }),
@@ -124,6 +126,12 @@ class _MyHomePageState extends State<MyHomePage> {
                         height: 0,
                         width: 0,
                       ),
+                _photoAction != null
+                    ? Image.file(File(_photoAction!))
+                    : SizedBox(
+                        width: 0,
+                        height: 0,
+                      )
               ],
             ),
           ),
@@ -149,10 +157,8 @@ class _CameraScreenState extends State<CameraScreen> {
           cameraLensType: CameraLensType.CAMERA_FRONT,
           onError: print,
           onCapture: (path, _) {
-            if (path != null) {
-              print(path);
-              Navigator.pop(context, path);
-            }
+            print(path);
+            Navigator.pop(context, path);
           },
           overlayBuilder: (context) {
             return Center(
@@ -194,10 +200,8 @@ class _CameraFaceScreenState extends State<CameraFaceScreen> {
           style: TextStyle(fontSize: 18, color: Colors.white),
         )),
         onCapturePhoto: (path) {
-          if (path != null) {
-            print(path);
-            Navigator.pop(context, path);
-          }
+          print(path);
+          Navigator.pop(context, path);
         },
       ),
     );
@@ -216,6 +220,7 @@ class CameraLivenessFaceScreen extends StatefulWidget {
 class _CameraLivenessFaceScreen extends State<CameraLivenessFaceScreen> {
   FaceStepType _faceStepType = FaceStepType.FACE_STEP_FACEDETECTION;
   double _livenessPercentage = 0.0;
+  String? _actionPath;
 
   Map<FaceLivenessType, String> _livenessTexts = {
     FaceLivenessType.FACE_ANGLE_LEFT: 'Поверните голову влево.',
@@ -289,7 +294,11 @@ class _CameraLivenessFaceScreen extends State<CameraLivenessFaceScreen> {
           }
         },
         onCapturePhoto: (path, _) {
-          Navigator.pop(context, path);
+          Navigator.pop(context, [path, _actionPath]);
+        },
+        onActionPhoto: (path, _) {
+          // Navigator.pop(context, path);
+          _actionPath = path;
         },
       ),
     );

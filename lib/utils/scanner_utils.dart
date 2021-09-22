@@ -13,6 +13,22 @@ import 'package:google_ml_vision/google_ml_vision.dart';
 class ScannerUtils {
   ScannerUtils._();
 
+  static Uint8List concatenatePlanes(List<Plane> planes) {
+    return _concatenatePlanes(planes);
+  }
+
+  static Future<String> detectText(String path) async {
+    String? text;
+    try {
+      var textRecognizer = GoogleVision.instance.textRecognizer();
+      var textData = await textRecognizer
+          .processImage(GoogleVisionImage.fromFilePath(path));
+      text = textData.text;
+      await textRecognizer.close();
+    } catch (_) {}
+    return text ?? '';
+  }
+
   static Future<CameraDescription> getCamera(CameraLensDirection dir) async {
     return await availableCameras().then(
       (List<CameraDescription> cameras) => cameras.firstWhere(
@@ -27,9 +43,11 @@ class ScannerUtils {
     required int imageRotation,
   }) async {
     print(image.planes.length);
+
     return detectInImage(
       GoogleVisionImage.fromBytes(
         _concatenatePlanes(image.planes),
+        // image.planes[0].bytes,
         _buildMetaData(image, _rotationIntToImageRotation(imageRotation)),
       ),
     );
