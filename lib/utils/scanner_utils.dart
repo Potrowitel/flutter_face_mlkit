@@ -44,7 +44,7 @@ class ScannerUtils {
   }) async {
     print(image.planes.length);
 
-    return detectInImage(
+    return await detectInImage(
       GoogleVisionImage.fromBytes(
         _concatenatePlanes(image.planes),
         // image.planes[0].bytes,

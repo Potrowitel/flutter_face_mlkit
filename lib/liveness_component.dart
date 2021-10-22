@@ -259,13 +259,13 @@ class _LivenessComponentState extends State<LivenessComponent>
 
       await Future.delayed(Duration(milliseconds: 10));
       var imgFile = await _controller!.takePicture();
-      await imgFile.saveTo(imgPath);
+      // await imgFile.saveTo(imgPath);
       LoadingOverlay.showLoadingOverlay(context);
 
       var _port = ReceivePort();
 
       await FlutterIsolate.spawn<Map<String, dynamic>>(_compressFile, {
-        'path': imgPath,
+        'path': imgFile.path,
         'outPath': imgCopressedPath,
         'port': _port.sendPort
       });
@@ -273,8 +273,10 @@ class _LivenessComponentState extends State<LivenessComponent>
       String compressedFile = await _port.first;
 
       _port.close();
-      await _controller?.startImageStream(_streamWorker);
+
       _onActionPhoto(compressedFile);
+      Future.delayed(Duration(milliseconds: 200),
+          () async => await _controller?.startImageStream(_streamWorker));
     } catch (err) {
       print(err);
       _onActionPhoto(null);
@@ -303,15 +305,15 @@ class _LivenessComponentState extends State<LivenessComponent>
         var imgPath = '${tmpDir.path}/${rStr}_selfie.jpg';
         var imgCopressedPath = '${tmpDir.path}/${rStr}_compressed_selfie.jpg';
 
-        await Future.delayed(Duration(milliseconds: 300));
+        await Future.delayed(Duration(milliseconds: 10));
         var imgFile = await _controller!.takePicture();
-        await imgFile.saveTo(imgPath);
+        // await imgFile.saveTo(imgPath);
         LoadingOverlay.showLoadingOverlay(context);
 
         var _port = ReceivePort();
 
         await FlutterIsolate.spawn<Map<String, dynamic>>(_compressFile, {
-          'path': imgPath,
+          'path': imgFile.path,
           'outPath': imgCopressedPath,
           'port': _port.sendPort
         });
@@ -365,34 +367,29 @@ class _LivenessComponentState extends State<LivenessComponent>
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
     // App state changed before we got the chance to initialize.
-    if (_controller == null || _controller?.value.isInitialized == false) {
+    if (_controller?.value.isInitialized == false) {
       return;
     }
     if (state == AppLifecycleState.inactive) {
       print('I am INACTIVE');
       try {
         print('Dispose detector');
-        _faceDetector?.close().then((_) {
-          print('Dispose stream');
-          _controller?.stopImageStream().then((_) {
-            print('Dispose controller');
 
-            _controller?.dispose();
-          });
-        });
+        await _faceDetector?.close();
+        await _controller?.stopImageStream();
         _controller = null;
       } catch (err) {
         print(err);
+      } finally {
+        try {
+          _controller?.dispose();
+        } catch (_) {}
       }
     } else if (state == AppLifecycleState.resumed) {
       print('I am RESUME');
-      if (_controller != null) {
-        _initializeControllerFuture = _controller!.initialize();
-
-        _initializeCamera(_initializeControllerFuture);
-      }
+      _initializeCamera();
     }
   }
 
@@ -407,30 +404,35 @@ class _LivenessComponentState extends State<LivenessComponent>
       image: image,
       detectInImage: _faceDetector!.processImage,
       imageRotation: _cameraDescription.sensorOrientation,
-    ).then(
-      (dynamic results) {
-        if (!mounted) return;
+    )
+        .then(
+          (dynamic results) {
+            if (!mounted) return;
 
-        List<Face> faces = results as List<Face>;
-        print('Face detected ---->  ${faces.length.toString()}');
-        try {
-          var _face = faces.first;
-          // if (_true == false) {
-          //   _true = true;
-          //   var bytes = ScannerUtils.concatenatePlanes(image.planes);
-          //   getTemporaryDirectory().then((value) {
-          //     var rStr = DateTime.now().microsecondsSinceEpoch.toString();
-          //     var imgPath = '${value.path}/${rStr}_ass.jpg';
-          //     File(imgPath).writeAsBytesSync(bytes);
-          //     _onActionPhoto(imgPath);
-          //   });
-          // }
-          _faceProcessing(_face);
-        } catch (err) {
+            List<Face> faces = results as List<Face>;
+            print('Face detected ---->  ${faces.length.toString()}');
+            try {
+              var _face = faces.first;
+              // if (_true == false) {
+              //   _true = true;
+              //   var bytes = ScannerUtils.concatenatePlanes(image.planes);
+              //   getTemporaryDirectory().then((value) {
+              //     var rStr = DateTime.now().microsecondsSinceEpoch.toString();
+              //     var imgPath = '${value.path}/${rStr}_ass.jpg';
+              //     File(imgPath).writeAsBytesSync(bytes);
+              //     _onActionPhoto(imgPath);
+              //   });
+              // }
+              _faceProcessing(_face);
+            } catch (err) {
+              print(err);
+            }
+          },
+        )
+        .whenComplete(() => _isDetecting = false)
+        .catchError((err) {
           print(err);
-        }
-      },
-    ).whenComplete(() => _isDetecting = false);
+        });
   }
 
   @override
@@ -451,33 +453,37 @@ class _LivenessComponentState extends State<LivenessComponent>
             parent: _successImageAnimationController!,
             curve: Curves.slowMiddle));
 
-    _faceDetector = GoogleVision.instance.faceDetector();
-
-    _initializeCamera(null);
+    _initializeCamera();
   }
 
-  Future<void> _initializeCamera(Future? init) async {
+  Future<void> _initializeCamera() async {
     print('Init camera');
-    await Future.delayed(Duration(seconds: 1));
-    if (init == null) {
-      try {
-        print('Init description');
-        _cameraDescription =
-            await ScannerUtils.getCamera(CameraLensDirection.front);
+    await Future.delayed(Duration(milliseconds: 100));
 
-        print('Create controller');
-        _controller = CameraController(
-          _cameraDescription,
-          Platform.isIOS ? ResolutionPreset.veryHigh : ResolutionPreset.high,
-          // imageFormatGroup: ImageFormatGroup.jpeg,
-        );
+    try {
+      await _controller?.stopImageStream();
+    } catch (_) {}
 
-        print('Create init controller');
-        _initializeControllerFuture = _controller!.initialize();
-      } catch (err) {
-        print(err);
-      }
+    try {
+      await _controller?.dispose();
+      _faceDetector = GoogleVision.instance.faceDetector();
+      print('Init description');
+      _cameraDescription =
+          await ScannerUtils.getCamera(CameraLensDirection.front);
+
+      print('Create controller');
+      _controller = CameraController(
+        _cameraDescription,
+        Platform.isIOS ? ResolutionPreset.veryHigh : ResolutionPreset.high,
+        // imageFormatGroup: ImageFormatGroup.jpeg,
+      );
+
+      print('Create init controller');
+      _initializeControllerFuture = _controller!.initialize();
+    } catch (err) {
+      print(err);
     }
+
     // 21307198500031
 
     if (!mounted) {
@@ -500,21 +506,18 @@ class _LivenessComponentState extends State<LivenessComponent>
   }
 
   @override
-  void dispose() {
+  void dispose() async {
     WidgetsBinding.instance?.removeObserver(this);
     LoadingOverlay.removeLoadingOverlay();
-    print('Dispose');
+
     try {
-      print('Dispose detector');
-      _faceDetector?.close().then((_) {
-        print('Dispose image stream');
-        _controller?.stopImageStream().then((_) {
-          print('Dispose controller');
-          _controller?.dispose();
-        });
-      });
+      await _faceDetector?.close();
+
+      await _controller?.stopImageStream();
     } catch (err) {
       print(err);
+    } finally {
+      await _controller?.dispose();
     }
 
     _successImageAnimationController?.dispose();

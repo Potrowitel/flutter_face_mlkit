@@ -55,24 +55,23 @@ class _CameraViewState extends State<CameraView> with WidgetsBindingObserver {
   Future? _cameraInitializer;
   bool _isTakePhoto = false;
 
-  Future<void> _initializeCamera(Future? future) async {
-    if (future == null) {
-      try {
-        CameraDescription cameraDesc = await ScannerUtils.getCamera(
-            _getCameraLensDirection(widget.cameraLensType));
+  Future<void> _initializeCamera() async {
+    try {
+      await _cameraController?.dispose();
+      CameraDescription cameraDesc = await ScannerUtils.getCamera(
+          _getCameraLensDirection(widget.cameraLensType));
 
-        _cameraController = CameraController(
-            cameraDesc,
-            Platform.isIOS
-                ? ResolutionPreset.veryHigh
-                : ResolutionPreset.veryHigh);
-      } catch (err) {
-        print(err);
-      }
+      _cameraController = CameraController(
+          cameraDesc,
+          Platform.isIOS
+              ? ResolutionPreset.veryHigh
+              : ResolutionPreset.veryHigh);
+    } catch (err) {
+      print(err);
     }
 
     try {
-      _cameraInitializer = future ?? _cameraController!.initialize();
+      _cameraInitializer = _cameraController!.initialize();
 
       await _cameraInitializer;
     } catch (err) {
@@ -124,7 +123,7 @@ class _CameraViewState extends State<CameraView> with WidgetsBindingObserver {
     WidgetsBinding.instance?.addObserver(this);
     super.initState();
     try {
-      _initializeCamera(null);
+      _initializeCamera();
     } catch (err) {
       _onError(err);
     }
@@ -149,11 +148,12 @@ class _CameraViewState extends State<CameraView> with WidgetsBindingObserver {
     if (state == AppLifecycleState.inactive) {
       _cameraController?.dispose();
     } else if (state == AppLifecycleState.resumed) {
-      if (_cameraController != null) {
-        _cameraInitializer = _cameraController!.initialize();
+      _initializeCamera();
+      // if (_cameraController != null) {
+      //   _cameraInitializer = _cameraController!.initialize();
 
-        _initializeCamera(_cameraInitializer);
-      }
+      //   _initializeCamera(null);
+      // }
     }
   }
 
