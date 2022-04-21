@@ -326,11 +326,13 @@ class _LivenessComponentState extends State<LivenessComponent>
           List<Face> _faces = await _faceDetector!
               .processImage(GoogleVisionImage.fromFilePath(compressedFile));
           var _faceForCheck = _faces.first;
-          if (_isFaceInOval(_faceForCheck) == true) {
-            _onCapturePhoto(compressedFile);
-          } else {
-            _onCapturePhoto(null);
-          }
+          _onCapturePhoto(compressedFile);
+
+          //if (_isFaceInOval(_faceForCheck) == true) {
+          //  _onCapturePhoto(compressedFile);
+          //} else {
+          //  _onCapturePhoto(null);
+          //}
         } catch (err) {
           print(err);
           _onCapturePhoto(null);
