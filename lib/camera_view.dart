@@ -196,7 +196,17 @@ class _CameraViewState extends State<CameraView> with WidgetsBindingObserver {
               ],
             );
           }
-          return SizedBox(height: 0, width: 0);
+          return Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Center(
+                  child: Text(
+                    'Произошла ошибка при инициализации камеры. Возможно вы не дали нужные разрешения!',
+                    textAlign: TextAlign.center,
+                  ),
+                )
+              ],
+            );
         },
       ),
     );
