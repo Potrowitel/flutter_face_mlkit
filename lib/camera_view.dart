@@ -191,6 +191,7 @@ class _CameraViewState extends State<CameraView> with WidgetsBindingObserver {
                   child: Text(
                     'Произошла ошибка при инициализации камеры. Возможно вы не дали нужные разрешения!',
                     textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.red),
                   ),
                 )
               ],
@@ -203,6 +204,7 @@ class _CameraViewState extends State<CameraView> with WidgetsBindingObserver {
                   child: Text(
                     'Произошла ошибка при инициализации камеры. Возможно вы не дали нужные разрешения!',
                     textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.red),
                   ),
                 )
               ],
