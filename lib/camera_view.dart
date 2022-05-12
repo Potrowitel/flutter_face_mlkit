@@ -161,8 +161,8 @@ class _CameraViewState extends State<CameraView> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     var cameraInfo = CameraInfo(
         widget.cameraLensType,
-        _cameraController?.value.aspectRatio ?? 1.0,
-        _cameraController?.value.previewSize ?? Size(1, 1));
+        _cameraController?.value?.aspectRatio ?? 1.0,
+        _cameraController?.value?.previewSize ?? Size(1, 1));
     return Container(
       child: FutureBuilder(
         future: _cameraInitializer,
