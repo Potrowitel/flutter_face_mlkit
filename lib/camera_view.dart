@@ -38,13 +38,16 @@ class CameraView extends StatefulWidget {
   final CaptureButtonBuilder? captureButtonBuilder;
   final ValueChanged? onError;
   final CaptureResult? onCapture;
+  final Widget? errorBuilder;
 
-  CameraView(
-      {this.cameraLensType = CameraLensType.CAMERA_BACK,
-      this.captureButtonBuilder,
-      this.overlayBuilder,
-      this.onCapture,
-      this.onError});
+  CameraView({
+    this.cameraLensType = CameraLensType.CAMERA_BACK,
+    this.captureButtonBuilder,
+    this.overlayBuilder,
+    this.onCapture,
+    this.onError,
+    this.errorBuilder,
+  });
 
   @override
   _CameraViewState createState() => _CameraViewState();
@@ -159,17 +162,16 @@ class _CameraViewState extends State<CameraView> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    
     return Container(
       child: FutureBuilder(
         future: _cameraInitializer,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.done &&
               _cameraController?.value.isInitialized == true) {
-              var cameraInfo = CameraInfo(
-        widget.cameraLensType,
-        _cameraController?.value?.aspectRatio ?? 1.0,
-        _cameraController?.value?.previewSize ?? Size(1, 1));
+            var cameraInfo = CameraInfo(
+                widget.cameraLensType,
+                _cameraController?.value?.aspectRatio ?? 1.0,
+                _cameraController?.value?.previewSize ?? Size(1, 1));
             return Stack(
               children: <Widget>[
                 Center(child: CameraPreview(_cameraController!)),
@@ -184,34 +186,31 @@ class _CameraViewState extends State<CameraView> with WidgetsBindingObserver {
             );
           }
           if (snapshot.hasError) {
-            return Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Center(
-                  child: Text(
-                    'Произошла ошибка при инициализации камеры. Возможно вы не дали нужные разрешения!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.red),
-                  ),
-                )
-              ],
-            );
+            return _errorBuilder(context);
           }
-          return Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Center(
-                  child: Text(
-                    'Произошла ошибка при инициализации камеры. Возможно вы не дали нужные разрешения!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.red),
-                  ),
-                )
-              ],
-            );
+          return _errorBuilder(context);
         },
       ),
     );
+  }
+
+  Widget _errorBuilder(context) {
+    if (widget.errorBuilder != null) {
+      return widget.errorBuilder!;
+    } else {
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          Center(
+            child: Text(
+              'Произошла ошибка при инициализации камеры. Возможно вы не дали нужные разрешения!',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.red),
+            ),
+          )
+        ],
+      );
+    }
   }
 
   Widget _overlayBuilder(context) {
