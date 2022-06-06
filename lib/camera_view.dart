@@ -13,7 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter_face_mlkit/utils/loading_overlay.dart';
 import 'package:flutter_face_mlkit/utils/scanner_utils.dart';
 
-typedef Widget OverlayBuilder(BuildContext context);
+typedef Widget CustomBuilder(BuildContext context);
 
 typedef Widget CaptureButtonBuilder(
     BuildContext context, VoidCallback onCapture, CameraInfo cameraInfo);
@@ -34,11 +34,11 @@ void _compressFile(Map<String, dynamic> param) async {
 
 class CameraView extends StatefulWidget {
   final CameraLensType cameraLensType;
-  final OverlayBuilder? overlayBuilder;
+  final CustomBuilder? overlayBuilder;
   final CaptureButtonBuilder? captureButtonBuilder;
   final ValueChanged? onError;
   final CaptureResult? onCapture;
-  final Widget? errorBuilder;
+  final CustomBuilder? errorBuilder;
 
   CameraView({
     this.cameraLensType = CameraLensType.CAMERA_BACK,
@@ -196,7 +196,7 @@ class _CameraViewState extends State<CameraView> with WidgetsBindingObserver {
 
   Widget _errorBuilder(context) {
     if (widget.errorBuilder != null) {
-      return widget.errorBuilder!;
+      return widget.errorBuilder!(context);
     } else {
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
