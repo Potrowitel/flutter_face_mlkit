@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:camera/camera.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_face_mlkit/utils/camera_info.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
@@ -170,8 +169,8 @@ class _CameraViewState extends State<CameraView> with WidgetsBindingObserver {
               _cameraController?.value.isInitialized == true) {
             var cameraInfo = CameraInfo(
                 widget.cameraLensType,
-                _cameraController?.value?.aspectRatio ?? 1.0,
-                _cameraController?.value?.previewSize ?? Size(1, 1));
+                _cameraController?.value.aspectRatio ?? 1.0,
+                _cameraController?.value.previewSize ?? Size(1, 1));
             return Stack(
               children: <Widget>[
                 Center(child: CameraPreview(_cameraController!)),

@@ -4,9 +4,7 @@ import 'dart:isolate';
 
 import 'package:camera/camera.dart';
 import 'package:drawing_animation/drawing_animation.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 
 import 'package:flutter_face_mlkit/camera_view.dart';
 import 'package:flutter_face_mlkit/utils/camera_info.dart';
@@ -16,7 +14,7 @@ import 'package:flutter_face_mlkit/utils/oval_clipper.dart';
 import 'package:flutter_face_mlkit/utils/scanner_utils.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_isolate/flutter_isolate.dart';
-import 'package:google_ml_vision/google_ml_vision.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 import 'package:path_provider/path_provider.dart';
 
@@ -30,7 +28,10 @@ enum FaceLivenessType {
   FACE_ANGLE_LEFT,
   FACE_ANGLE_RIGHT,
   FACE_ANGLE_TOP,
-  FACE_ANGLE_BOTTOM
+  FACE_ANGLE_BOTTOM,
+  FACE_TILT_LEFT,
+  FACE_TILT_RIGHT,
+  FACE_SMILE,
 }
 
 void _compressFile(Map<String, dynamic> param) async {
@@ -93,6 +94,7 @@ class _LivenessComponentState extends State<LivenessComponent>
   bool _isAnimRun = false;
 
   FaceStepType _faceStepType = FaceStepType.FACE_STEP_FACEDETECTION;
+  Function(Function)? updateOverlay;
 
   void _onPercentChange(double percent) {
     widget.onLivenessPercentChange?.call(percent);
@@ -144,6 +146,9 @@ class _LivenessComponentState extends State<LivenessComponent>
     double _facePercentage = _faceAngle * 100.0 / 50.0;
     print('Face angle percentage = $_facePercentage');
 
+    if (_facePercentage < -5.0 || _facePercentage > 5.0) {
+      return false;
+    }
     RenderBox box = _keyBuilder.currentContext!.findRenderObject() as RenderBox;
     final Size size = box.size;
     final Size absoluteImageSize = Size(
@@ -159,9 +164,6 @@ class _LivenessComponentState extends State<LivenessComponent>
       face.boundingBox.bottom * scaleY,
     );
 
-    if (_facePercentage < -5.0 || _facePercentage > 5.0) {
-      return false;
-    }
     print('-------------------$_facePercentage----------------');
     print('FACE CONFIRMING = ' +
         faceRect.toString() +
@@ -182,7 +184,7 @@ class _LivenessComponentState extends State<LivenessComponent>
   }
 
   Future<void> _faceDetectingStep(Face face) async {
-    setState(() {
+    updateOverlay?.call(() {
       _faceStepType = FaceStepType.FACE_STEP_LIVENESS;
       _onStepChange(_faceStepType);
     });
@@ -191,44 +193,86 @@ class _LivenessComponentState extends State<LivenessComponent>
   Future<void> _faceLivenessStep(Face face) async {
     var _faceAngleX = face.headEulerAngleY;
     var _faceAngleY = face.headEulerAngleZ;
+    var _faceAngleZ = face.headEulerAngleX;
+    var _faceSmile = face.smilingProbability;
     var _faceEyeLeft = face.leftEyeOpenProbability;
     var _faceEyeRight = face.rightEyeOpenProbability;
 
     print(
         '_FACE X = $_faceAngleX; _FACE Z = $_faceAngleY; _FACE LEYE = $_faceEyeLeft; _FACE_REYE = $_faceEyeRight;');
 
-    double? _faceAngle = 0.0;
-    if (widget.livenessType == FaceLivenessType.FACE_ANGLE_RIGHT) {
-      _faceAngle = Platform.isAndroid
-          ? _faceAngleX! < 0.0
-              ? _faceAngleX
-              : 0.0
-          : _faceAngleX! > 0.0
-              ? _faceAngleX
-              : 0.0;
-    } else if (widget.livenessType == FaceLivenessType.FACE_ANGLE_LEFT) {
-      _faceAngle = Platform.isAndroid
-          ? _faceAngleX! > 0.0
-              ? _faceAngleX
-              : 0.0
-          : _faceAngleX! < 0.0
-              ? _faceAngleX
-              : 0.0;
-    } else if (widget.livenessType == FaceLivenessType.FACE_ANGLE_BOTTOM) {
-      _faceAngle = _faceAngleY! > 0.0 ? _faceAngleY * 50 / 16.0 : 0.0;
-    } else if (widget.livenessType == FaceLivenessType.FACE_ANGLE_BOTTOM) {
-      _faceAngle = _faceAngleY! < 0.0 ? _faceAngleY * 50 / 16.0 : 0.0;
+    double? _faceLivenessPercent = 0.0;
+    switch (widget.livenessType) {
+      case FaceLivenessType.FACE_ANGLE_LEFT:
+        _faceLivenessPercent = Platform.isAndroid
+            ? _faceAngleX! > 0.0
+                ? _faceAngleX
+                : 0.0
+            : _faceAngleX! < 0.0
+                ? _faceAngleX
+                : 0.0;
+        break;
+      case FaceLivenessType.FACE_ANGLE_RIGHT:
+        _faceLivenessPercent = Platform.isAndroid
+            ? _faceAngleX! < 0.0
+                ? _faceAngleX
+                : 0.0
+            : _faceAngleX! > 0.0
+                ? _faceAngleX
+                : 0.0;
+        break;
+      case FaceLivenessType.FACE_ANGLE_TOP:
+        _faceLivenessPercent = Platform.isAndroid
+            ? _faceAngleZ! > 0.0
+                ? _faceAngleZ * 1.7
+                : 0.0
+            : _faceAngleZ! < 0.0
+                ? _faceAngleZ * 1.7
+                : 0.0;
+        break;
+      case FaceLivenessType.FACE_ANGLE_BOTTOM:
+        _faceLivenessPercent = Platform.isAndroid
+            ? _faceAngleZ! < 0.0
+                ? _faceAngleZ * 1.7
+                : 0.0
+            : _faceAngleZ! > 0.0
+                ? _faceAngleZ * 1.7
+                : 0.0;
+        break;
+
+      case FaceLivenessType.FACE_TILT_LEFT:
+        _faceLivenessPercent = Platform.isAndroid
+            ? _faceAngleY! < 0.0
+                ? _faceAngleY
+                : 0.0
+            : _faceAngleY! > 0.0
+                ? _faceAngleY
+                : 0.0;
+        break;
+      case FaceLivenessType.FACE_TILT_RIGHT:
+        _faceLivenessPercent = Platform.isAndroid
+            ? _faceAngleY! > 0.0
+                ? _faceAngleY
+                : 0.0
+            : _faceAngleY! < 0.0
+                ? _faceAngleY
+                : 0.0;
+        break;
+      case FaceLivenessType.FACE_SMILE:
+        _faceLivenessPercent = _faceSmile! * 100;
+        break;
     }
 
-    _faceAngle = _faceAngle.abs();
+    _faceLivenessPercent = _faceLivenessPercent.abs();
 
-    _faceAngle = _faceAngle > 50.0 ? 50.0 : _faceAngle;
-    double _facePercentage = _faceAngle * 100.0 / 50.0;
+    _faceLivenessPercent =
+        _faceLivenessPercent > 50.0 ? 50.0 : _faceLivenessPercent;
+    double _facePercentage = _faceLivenessPercent * 100.0 / 50.0;
 
     _onPercentChange(_facePercentage);
     if (_facePercentage > 80.0) {
       await _captureAction();
-      setState(() {
+      updateOverlay?.call(() {
         _faceStepType = FaceStepType.FACE_STEP_CAPTURING;
         _onStepChange(_faceStepType);
       });
@@ -298,7 +342,7 @@ class _LivenessComponentState extends State<LivenessComponent>
         await _controller!.stopImageStream();
 
         _successImageAnimationController!.forward();
-        setState(() => _isAnimRun = true);
+        updateOverlay?.call(() => _isAnimRun = true);
 
         var tmpDir = await getTemporaryDirectory();
         var rStr = DateTime.now().microsecondsSinceEpoch.toString();
@@ -323,9 +367,9 @@ class _LivenessComponentState extends State<LivenessComponent>
         _port.close();
 
         try {
-          List<Face> _faces = await _faceDetector!
-              .processImage(GoogleVisionImage.fromFilePath(compressedFile));
-          var _faceForCheck = _faces.first;
+          // List<Face> _faces = await _faceDetector!
+          //     .processImage(InputImage.fromFilePath(compressedFile));
+          // var _faceForCheck = _faces.first;
           _onCapturePhoto(compressedFile);
 
           //if (_isFaceInOval(_faceForCheck) == true) {
@@ -468,7 +512,9 @@ class _LivenessComponentState extends State<LivenessComponent>
 
     try {
       await _controller?.dispose();
-      _faceDetector = GoogleVision.instance.faceDetector();
+      _faceDetector = FaceDetector(
+          options: FaceDetectorOptions(
+              enableClassification: true, enableTracking: true));
       print('Init description');
       _cameraDescription =
           await ScannerUtils.getCamera(CameraLensDirection.front);
@@ -549,60 +595,72 @@ class _LivenessComponentState extends State<LivenessComponent>
                   child: RepaintBoundary(
                       key: previewContainer,
                       child: CameraPreview(_controller!))),
-              _isShowOvalArea()
-                  ? CustomPaint(
-                      foregroundPainter: FaceDetectorPainter(
-                          imageSize, _face, _customOvalRect),
-                      child: ClipPath(
-                          clipper: OvalClipper(_customOvalRect),
-                          child: Transform.scale(
-                              scale:
-                                  _controller!.value.aspectRatio / deviceRatio,
-                              child: Center(
-                                  child: Container(color: Colors.black54)))))
-                  : SizedBox(height: 0, width: 0),
-              Positioned(
-                  top: _customOvalRect!.bottom + 40,
-                  left: 0,
-                  right: 0,
-                  child: Container(child: _infoBlockBuilder(context))),
-              _isShowAnimationArea()
-                  ? AnimatedBuilder(
-                      animation: _successImageAnimationController!,
-                      builder: (context, child) {
-                        return Positioned(
-                            child: Opacity(
-                                opacity: _successImageAnimation == null
-                                    ? 0.0
-                                    : _successImageAnimation!.value,
-                                child: Icon(
-                                  Icons.check_circle_outline,
-                                  color: Colors.green,
-                                  size: 52,
-                                )),
-                            top: _customOvalRect!.center.dy - 26,
-                            left: _customOvalRect!.center.dx - 26);
-                      })
-                  : SizedBox(height: 0, width: 0),
-              _isShowAnimationArea()
-                  ? Positioned(
-                      top: 0,
-                      left: 0,
-                      child: AnimatedDrawing.paths(
-                        <Path>[_ovalPath!],
-                        paints: <Paint>[_ovalPaint!],
-                        animationOrder: PathOrder.byLength(),
-                        lineAnimation: LineAnimation.oneByOne,
-                        animationCurve: Curves.easeInQuad,
-                        scaleToViewport: false,
-                        width: _customOvalRect!.width,
-                        height: _customOvalRect!.height,
-                        duration: Duration(milliseconds: 400),
-                        run: _isAnimRun,
-                        onFinish: () => setState(() => _isAnimRun = false),
-                      ),
-                    )
-                  : SizedBox(height: 0, width: 0)
+              StatefulBuilder(
+                builder: (context, setState) {
+                  updateOverlay = ((update) {
+                    setState(() {
+                      update.call();
+                    });
+                  });
+                  return Stack(
+                    children: [
+                      if (_isShowOvalArea())
+                        CustomPaint(
+                            foregroundPainter: FaceDetectorPainter(
+                                imageSize, _face, _customOvalRect),
+                            child: ClipPath(
+                                clipper: OvalClipper(_customOvalRect),
+                                child: Transform.scale(
+                                    scale: _controller!.value.aspectRatio /
+                                        deviceRatio,
+                                    child: Center(
+                                        child: Container(
+                                            color: Colors.black54))))),
+                      Positioned(
+                          top: _customOvalRect!.bottom + 40,
+                          left: 0,
+                          right: 0,
+                          child: Container(child: _infoBlockBuilder(context))),
+                      if (_isShowAnimationArea())
+                        AnimatedBuilder(
+                            animation: _successImageAnimationController!,
+                            builder: (context, child) {
+                              return Positioned(
+                                  child: Opacity(
+                                      opacity: _successImageAnimation == null
+                                          ? 0.0
+                                          : _successImageAnimation!.value,
+                                      child: Icon(
+                                        Icons.check_circle_outline,
+                                        color: Colors.green,
+                                        size: 52,
+                                      )),
+                                  top: _customOvalRect!.center.dy - 26,
+                                  left: _customOvalRect!.center.dx - 26);
+                            }),
+                      if (_isShowAnimationArea())
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          child: AnimatedDrawing.paths(
+                            <Path>[_ovalPath!],
+                            paints: <Paint>[_ovalPaint!],
+                            animationOrder: PathOrder.byLength(),
+                            lineAnimation: LineAnimation.oneByOne,
+                            animationCurve: Curves.easeInQuad,
+                            scaleToViewport: false,
+                            width: _customOvalRect!.width,
+                            height: _customOvalRect!.height,
+                            duration: Duration(milliseconds: 400),
+                            run: _isAnimRun,
+                            onFinish: () =>
+                                updateOverlay?.call(() => _isAnimRun = false),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
             ],
           );
         }

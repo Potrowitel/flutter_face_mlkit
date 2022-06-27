@@ -226,7 +226,8 @@ class _CameraLivenessFaceScreen extends State<CameraLivenessFaceScreen> {
     FaceLivenessType.FACE_ANGLE_LEFT: 'Поверните голову влево.',
     FaceLivenessType.FACE_ANGLE_RIGHT: 'Поверните голову вправо.',
     FaceLivenessType.FACE_ANGLE_TOP: 'Посмотрите вверх',
-    FaceLivenessType.FACE_ANGLE_BOTTOM: 'Посмотрите вниз'
+    FaceLivenessType.FACE_ANGLE_BOTTOM: 'Посмотрите вниз',
+    FaceLivenessType.FACE_SMILE: 'Улыбнитесь',
   };
 
   @override

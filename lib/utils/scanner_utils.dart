@@ -8,7 +8,7 @@ import 'dart:ui';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
-import 'package:google_ml_vision/google_ml_vision.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 
 class ScannerUtils {
   ScannerUtils._();
@@ -20,9 +20,9 @@ class ScannerUtils {
   static Future<String> detectText(String path) async {
     String? text;
     try {
-      var textRecognizer = GoogleVision.instance.textRecognizer();
-      var textData = await textRecognizer
-          .processImage(GoogleVisionImage.fromFilePath(path));
+      var textRecognizer = TextRecognizer();
+      var textData =
+          await textRecognizer.processImage(InputImage.fromFilePath(path));
       text = textData.text;
       await textRecognizer.close();
     } catch (_) {}
@@ -39,16 +39,17 @@ class ScannerUtils {
 
   static Future<dynamic> detect({
     required CameraImage image,
-    required Future<dynamic> Function(GoogleVisionImage image) detectInImage,
+    required Future<dynamic> Function(InputImage image) detectInImage,
     required int imageRotation,
   }) async {
-    print(image.planes.length);
+     print(image.planes.length);
 
     return await detectInImage(
-      GoogleVisionImage.fromBytes(
-        _concatenatePlanes(image.planes),
+      InputImage.fromBytes(
+        bytes: _concatenatePlanes(image.planes),
         // image.planes[0].bytes,
-        _buildMetaData(image, _rotationIntToImageRotation(imageRotation)),
+        inputImageData:
+            _buildMetaData(image, _rotationIntToImageRotation(imageRotation)),
       ),
     );
   }
@@ -61,17 +62,18 @@ class ScannerUtils {
     return allBytes.done().buffer.asUint8List();
   }
 
-  static GoogleVisionImageMetadata _buildMetaData(
+  static InputImageData _buildMetaData(
     CameraImage image,
-    ImageRotation rotation,
+    InputImageRotation rotation,
   ) {
-    return GoogleVisionImageMetadata(
-      rawFormat: image.format.raw,
+    return InputImageData(
+      inputImageFormat: InputImageFormatValue.fromRawValue(image.format.raw) ??
+          InputImageFormat.nv21,
       size: Size(image.width.toDouble(), image.height.toDouble()),
-      rotation: rotation,
+      imageRotation: rotation,
       planeData: image.planes.map(
         (Plane plane) {
-          return GoogleVisionImagePlaneMetadata(
+          return InputImagePlaneMetadata(
             bytesPerRow: plane.bytesPerRow,
             height: plane.height,
             width: plane.width,
@@ -81,17 +83,17 @@ class ScannerUtils {
     );
   }
 
-  static ImageRotation _rotationIntToImageRotation(int rotation) {
+  static InputImageRotation _rotationIntToImageRotation(int rotation) {
     switch (rotation) {
       case 0:
-        return ImageRotation.rotation0;
+        return InputImageRotation.rotation0deg;
       case 90:
-        return ImageRotation.rotation90;
+        return InputImageRotation.rotation90deg;
       case 180:
-        return ImageRotation.rotation180;
+        return InputImageRotation.rotation180deg;
       default:
         assert(rotation == 270);
-        return ImageRotation.rotation270;
+        return InputImageRotation.rotation270deg;
     }
   }
 }
