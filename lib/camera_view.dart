@@ -21,6 +21,7 @@ typedef void CaptureResult(String path, CameraInfo info);
 
 enum CameraLensType { CAMERA_FRONT, CAMERA_BACK }
 
+@pragma("vm:entry-point")
 void _compressFile(Map<String, dynamic> param) async {
   print('Param - $param');
   var sendPort = param['port'] as SendPort;
@@ -31,6 +32,7 @@ void _compressFile(Map<String, dynamic> param) async {
   sendPort.send(file!.path);
 }
 
+@pragma("vm:entry-point")
 class CameraView extends StatefulWidget {
   final CameraLensType cameraLensType;
   final CustomBuilder? overlayBuilder;
@@ -64,10 +66,10 @@ class _CameraViewState extends State<CameraView> with WidgetsBindingObserver {
           _getCameraLensDirection(widget.cameraLensType));
 
       _cameraController = CameraController(
-          cameraDesc,
-          Platform.isIOS
-              ? ResolutionPreset.veryHigh
-              : ResolutionPreset.veryHigh);
+        cameraDesc,
+        Platform.isIOS ? ResolutionPreset.veryHigh : ResolutionPreset.veryHigh,
+        enableAudio: false,
+      );
     } catch (err) {
       print(err);
     }
@@ -88,6 +90,7 @@ class _CameraViewState extends State<CameraView> with WidgetsBindingObserver {
   Future<void> _takePhoto() async {
     try {
       if (_isTakePhoto) return;
+      LoadingOverlay.showLoadingOverlay(context);
       _isTakePhoto = true;
       var tmpDir = await getTemporaryDirectory();
       var rStr = DateTime.now().microsecondsSinceEpoch.toString();
@@ -99,7 +102,6 @@ class _CameraViewState extends State<CameraView> with WidgetsBindingObserver {
       await Future.delayed(Duration(milliseconds: 300));
       var imgFile = await _cameraController!.takePicture();
       await imgFile.saveTo(imgPath);
-      LoadingOverlay.showLoadingOverlay(context);
 
       await FlutterIsolate.spawn<Map<String, dynamic>>(_compressFile, {
         'path': imgPath,
@@ -122,7 +124,7 @@ class _CameraViewState extends State<CameraView> with WidgetsBindingObserver {
 
   @override
   void initState() {
-    WidgetsBinding.instance?.addObserver(this);
+    WidgetsBinding.instance.addObserver(this);
     super.initState();
     try {
       _initializeCamera();
@@ -133,7 +135,7 @@ class _CameraViewState extends State<CameraView> with WidgetsBindingObserver {
 
   @override
   void dispose() {
-    WidgetsBinding.instance?.removeObserver(this);
+    WidgetsBinding.instance.removeObserver(this);
     LoadingOverlay.removeLoadingOverlay();
 
     _cameraController?.dispose();

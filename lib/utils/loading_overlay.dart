@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 
 import 'dart:io' show Platform;
 
+@pragma("vm:entry-point")
 class LoadingOverlay {
   static OverlayEntry? _instanceOfEntry;
 

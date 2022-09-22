@@ -58,7 +58,7 @@ class _MyHomePageState extends State<MyHomePage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                RaisedButton(
+                ElevatedButton(
                     child: Text('Start Camera'),
                     onPressed: () async {
                       setState(() {
@@ -74,7 +74,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         });
                       }
                     }),
-                RaisedButton(
+                ElevatedButton(
                     child: Text('Start face Camera'),
                     onPressed: () async {
                       setState(() {
@@ -90,7 +90,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         });
                       }
                     }),
-                RaisedButton(
+                ElevatedButton(
                     child: Text('Start liveness Camera'),
                     onPressed: () async {
                       final random = Random();
@@ -108,9 +108,12 @@ class _MyHomePageState extends State<MyHomePage> {
                                     livenessType: _livenessSelectStatus,
                                   )));
                       if (result == null) {
-                        _scaffoldState.currentState!.showSnackBar(SnackBar(
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                           content: Text('Лицо не определено'),
                         ));
+                        // _scaffoldState.currentState(SnackBar(
+                        //   content: Text('Лицо не определено'),
+                        // ));
                         return;
                       }
                       if (result != null && result is List<String?>) {
@@ -168,7 +171,7 @@ class _CameraScreenState extends State<CameraScreen> {
             return Container(
                 color: Colors.red,
                 child: Center(
-                    child: RaisedButton(
+                    child: ElevatedButton(
                   onPressed: () => onCapture(),
                   child: Text('BTN'),
                 )));

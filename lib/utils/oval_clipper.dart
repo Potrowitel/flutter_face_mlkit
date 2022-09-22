@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+@pragma("vm:entry-point")
 class OvalClipper extends CustomClipper<Path> {
   final Rect? _ovalRect;
 

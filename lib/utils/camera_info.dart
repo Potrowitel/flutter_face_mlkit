@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter_face_mlkit/camera_view.dart';
 
+@pragma("vm:entry-point")
 class CameraInfo {
   final CameraLensType lensType;
   final double aspectRatio;

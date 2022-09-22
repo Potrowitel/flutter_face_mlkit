@@ -13,6 +13,7 @@ import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:rxdart/rxdart.dart';
 
+@pragma("vm:entry-point")
 class SelfieAutocapture extends StatefulWidget {
   final ValueChanged<String>? onCapturePhoto;
   final Widget Function(BuildContext)? infoBlockBuilder;

@@ -34,6 +34,7 @@ enum FaceLivenessType {
   FACE_SMILE,
 }
 
+@pragma("vm:entry-point")
 void _compressFile(Map<String, dynamic> param) async {
   var sendPort = param['port'] as SendPort;
   var file = await FlutterImageCompress.compressAndGetFile(
@@ -45,6 +46,7 @@ void _compressFile(Map<String, dynamic> param) async {
 
 typedef void CaptureResult(String? path, CameraInfo info);
 
+@pragma("vm:entry-point")
 class LivenessComponent extends StatefulWidget {
   final Rect? ovalRect;
 
@@ -285,7 +287,7 @@ class _LivenessComponentState extends State<LivenessComponent>
 
       var tmpDir = await getTemporaryDirectory();
       var rStr = DateTime.now().microsecondsSinceEpoch.toString();
-      var imgPath = '${tmpDir.path}/${rStr}_liveness.jpg';
+      // var imgPath = '${tmpDir.path}/${rStr}_liveness.jpg';
       var imgCopressedPath = '${tmpDir.path}/${rStr}_compressed_liveness.jpg';
 
       // RenderRepaintBoundary boundary = previewContainer.currentContext!
@@ -346,7 +348,7 @@ class _LivenessComponentState extends State<LivenessComponent>
 
         var tmpDir = await getTemporaryDirectory();
         var rStr = DateTime.now().microsecondsSinceEpoch.toString();
-        var imgPath = '${tmpDir.path}/${rStr}_selfie.jpg';
+        // var imgPath = '${tmpDir.path}/${rStr}_selfie.jpg';
         var imgCopressedPath = '${tmpDir.path}/${rStr}_compressed_selfie.jpg';
 
         await Future.delayed(Duration(milliseconds: 10));
@@ -483,7 +485,7 @@ class _LivenessComponentState extends State<LivenessComponent>
 
   @override
   void initState() {
-    WidgetsBinding.instance?.addObserver(this);
+    WidgetsBinding.instance.addObserver(this);
     super.initState();
 
     _customOvalRect = widget.ovalRect ?? Rect.fromLTWH(50, 50, 250, 350);
@@ -555,7 +557,7 @@ class _LivenessComponentState extends State<LivenessComponent>
 
   @override
   void dispose() async {
-    WidgetsBinding.instance?.removeObserver(this);
+    WidgetsBinding.instance.removeObserver(this);
     LoadingOverlay.removeLoadingOverlay();
 
     try {

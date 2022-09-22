@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:path_drawing/path_drawing.dart';
 
+@pragma("vm:entry-point")
 class FaceDetectorPainter extends CustomPainter {
   FaceDetectorPainter(this.absoluteImageSize, this.faces, this.oval);
 
