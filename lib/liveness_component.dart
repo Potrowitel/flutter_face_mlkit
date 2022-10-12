@@ -525,6 +525,7 @@ class _LivenessComponentState extends State<LivenessComponent>
       _controller = CameraController(
         _cameraDescription,
         Platform.isIOS ? ResolutionPreset.veryHigh : ResolutionPreset.high,
+        enableAudio: false,
         // imageFormatGroup: ImageFormatGroup.jpeg,
       );
 
