@@ -81,6 +81,7 @@ class _CameraViewState extends State<CameraView> with WidgetsBindingObserver {
     } catch (err) {
       print(err);
     }
+    _cameraController?.setFlashMode(FlashMode.off);
     if (!mounted) {
       return;
     }

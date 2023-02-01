@@ -544,6 +544,8 @@ class _LivenessComponentState extends State<LivenessComponent>
     await _initializeControllerFuture;
     print('After init');
 
+    _controller?.setFlashMode(FlashMode.off);
+
     if (!mounted) return;
     setState(() {});
 

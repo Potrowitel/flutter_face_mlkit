@@ -177,6 +177,8 @@ class _SelfieAutocaptureState extends State<SelfieAutocapture>
     }
     await _initializeControllerFuture;
 
+    _controller?.setFlashMode(FlashMode.off);
+
     await _controller!.startImageStream((CameraImage image) {
       if (!mounted) return;
       if (_isDetecting) return;
