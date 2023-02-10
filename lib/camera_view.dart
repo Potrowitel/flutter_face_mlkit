@@ -89,37 +89,40 @@ class _CameraViewState extends State<CameraView> with WidgetsBindingObserver {
   }
 
   Future<void> _takePhoto() async {
-    try {
-      if (_isTakePhoto) return;
-      LoadingOverlay.showLoadingOverlay(context);
-      _isTakePhoto = true;
-      var tmpDir = await getTemporaryDirectory();
-      var rStr = DateTime.now().microsecondsSinceEpoch.toString();
-      var imgPath = '${tmpDir.path}/${rStr}_photo.jpg';
-      var imgCopressedPath = '${tmpDir.path}/${rStr}_compressed_photo.jpg';
+    if (_cameraController?.value.isInitialized == true) {
+      try {
+        if (_isTakePhoto) return;
 
-      ReceivePort _port = ReceivePort();
+        LoadingOverlay.showLoadingOverlay(context);
+        _isTakePhoto = true;
+        var tmpDir = await getTemporaryDirectory();
+        var rStr = DateTime.now().microsecondsSinceEpoch.toString();
+        var imgPath = '${tmpDir.path}/${rStr}_photo.jpg';
+        var imgCopressedPath = '${tmpDir.path}/${rStr}_compressed_photo.jpg';
 
-      await Future.delayed(Duration(milliseconds: 300));
-      var imgFile = await _cameraController!.takePicture();
-      await imgFile.saveTo(imgPath);
+        ReceivePort _port = ReceivePort();
 
-      await FlutterIsolate.spawn<Map<String, dynamic>>(_compressFile, {
-        'path': imgPath,
-        'outPath': imgCopressedPath,
-        'port': _port.sendPort
-      });
+        await Future.delayed(Duration(milliseconds: 300));
+        var imgFile = await _cameraController!.takePicture();
+        await imgFile.saveTo(imgPath);
 
-      String compressedFile = await _port.first;
+        await FlutterIsolate.spawn<Map<String, dynamic>>(_compressFile, {
+          'path': imgPath,
+          'outPath': imgCopressedPath,
+          'port': _port.sendPort
+        });
 
-      _port.close();
+        String compressedFile = await _port.first;
 
-      LoadingOverlay.removeLoadingOverlay();
-      _isTakePhoto = false;
-      _onCapture(compressedFile);
-    } catch (err) {
-      _isTakePhoto = false;
-      _onError(err);
+        _port.close();
+
+        LoadingOverlay.removeLoadingOverlay();
+        _isTakePhoto = false;
+        _onCapture(compressedFile);
+      } catch (err) {
+        _isTakePhoto = false;
+        _onError(err);
+      }
     }
   }
 
