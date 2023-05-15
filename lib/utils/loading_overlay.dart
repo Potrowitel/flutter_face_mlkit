@@ -8,7 +8,6 @@ class LoadingOverlay {
   static OverlayEntry? _instanceOfEntry;
 
   static void showLoadingOverlay(BuildContext context, {String? text}) {
-
     removeLoadingOverlay();
     _instanceOfEntry = OverlayEntry(
         builder: (context) => Positioned(
@@ -20,11 +19,10 @@ class LoadingOverlay {
                 height: MediaQuery.of(context).size.height,
                 width: MediaQuery.of(context).size.height,
                 child: Center(
-                    child: Container(                        
+                    child: Container(
                         width: text == null ? 75 : 286,
-                        height:  text == null ? 75 : null,
+                        height: text == null ? 75 : null,
                         child: Card(
-                          
                             child: text == null
                                 ? Center(
                                     child: Platform.isIOS
@@ -33,27 +31,28 @@ class LoadingOverlay {
                                 : Row(
                                     children: <Widget>[
                                       Container(
-                                        margin: EdgeInsets.only(left: 26, right: 38),
+                                        margin: EdgeInsets.only(
+                                            left: 26, right: 38),
                                         child: Platform.isIOS
                                             ? CupertinoActivityIndicator()
                                             : CircularProgressIndicator(),
                                       ),
-                                      Expanded(child: Container(
-                                        padding: EdgeInsets.all(8),
-                                        child: Text(                                        
-                                        text,
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          
-                                          color: Colors.green),
-                                      ))),
+                                      Expanded(
+                                          child: Container(
+                                              padding: EdgeInsets.all(8),
+                                              child: Text(
+                                                text,
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                    fontSize: 16,
+                                                    color: Colors.green),
+                                              ))),
                                     ],
                                   )))),
                 decoration: BoxDecoration(color: Color(0x0f000000)),
               ),
             ));
-    Overlay.of(context)!.insert(_instanceOfEntry!);
+    Overlay.of(context).insert(_instanceOfEntry!);
   }
 
   static void removeLoadingOverlay() {

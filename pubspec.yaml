@@ -14,8 +14,8 @@ dependencies:
   rxdart: ^0.27.1
   path_provider: ^2.0.11
   # google_ml_vision: ^0.0.6
-  google_mlkit_face_detection: ^0.3.0
-  google_mlkit_text_recognition: ^0.3.0
+  google_mlkit_face_detection: ^0.6.0
+  google_mlkit_text_recognition: ^0.6.0
   path_drawing: ^0.5.1
   # drawing_animation: ^1.0.1
   drawing_animation:
