@@ -1,267 +1,333 @@
-import 'dart:async';
-import 'dart:io';
-import 'dart:isolate';
-
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_face_mlkit/utils/camera_info.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'package:flutter_isolate/flutter_isolate.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:flutter_face_mlkit/isolates/face_detection_isolate.dart';
+import 'package:flutter_face_mlkit/providers/mlkit_provider.dart';
+import 'package:flutter_face_mlkit/ui/face_scanner_scope.dart';
+import 'package:flutter_face_mlkit/ui/face_scanner_state.dart';
 
-import 'package:flutter_face_mlkit/utils/loading_overlay.dart';
-import 'package:flutter_face_mlkit/utils/scanner_utils.dart';
-
-typedef Widget CustomBuilder(BuildContext context);
-
-typedef Widget CaptureButtonBuilder(
-    BuildContext context, VoidCallback onCapture, CameraInfo cameraInfo);
-
-typedef void CaptureResult(String path, CameraInfo info);
-
-enum CameraLensType { CAMERA_FRONT, CAMERA_BACK }
-
-@pragma("vm:entry-point")
-void _compressFile(Map<String, dynamic> param) async {
-  print('Param - $param');
-  var sendPort = param['port'] as SendPort;
-  var file = await FlutterImageCompress.compressAndGetFile(
-      param['path']!, param['outPath']!,
-      quality: 75);
-
-  sendPort.send(file!.path);
-}
-
-@pragma("vm:entry-point")
-class CameraView extends StatefulWidget {
-  final CameraLensType cameraLensType;
-  final CustomBuilder? overlayBuilder;
-  final CaptureButtonBuilder? captureButtonBuilder;
-  final ValueChanged? onError;
-  final CaptureResult? onCapture;
-  final CustomBuilder? errorBuilder;
-
-  CameraView({
-    this.cameraLensType = CameraLensType.CAMERA_BACK,
-    this.captureButtonBuilder,
-    this.overlayBuilder,
-    this.onCapture,
-    this.onError,
-    this.errorBuilder,
-  });
-
-  @override
-  _CameraViewState createState() => _CameraViewState();
-}
-
-class _CameraViewState extends State<CameraView> with WidgetsBindingObserver {
-  CameraController? _cameraController;
-  Future? _cameraInitializer;
-  bool _isTakePhoto = false;
-
-  Future<void> _initializeCamera() async {
-    try {
-      await _cameraController?.dispose();
-      CameraDescription cameraDesc = await ScannerUtils.getCamera(
-          _getCameraLensDirection(widget.cameraLensType));
-
-      _cameraController = CameraController(
-        cameraDesc,
-        Platform.isIOS ? ResolutionPreset.veryHigh : ResolutionPreset.veryHigh,
-        enableAudio: false,
-      );
-    } catch (err) {
-      print(err);
-    }
-
-    try {
-      _cameraInitializer = _cameraController!.initialize();
-
-      await _cameraInitializer;
-    } catch (err) {
-      print(err);
-    }
-    _cameraController?.setFlashMode(FlashMode.off);
-    if (!mounted) {
-      return;
-    }
-    setState(() {});
-  }
-
-  Future<void> _takePhoto() async {
-    if (_cameraController?.value.isInitialized == true) {
-      try {
-        if (_isTakePhoto) return;
-
-        LoadingOverlay.showLoadingOverlay(context);
-        _isTakePhoto = true;
-        var tmpDir = await getTemporaryDirectory();
-        var rStr = DateTime.now().microsecondsSinceEpoch.toString();
-        var imgPath = '${tmpDir.path}/${rStr}_photo.jpg';
-        var imgCopressedPath = '${tmpDir.path}/${rStr}_compressed_photo.jpg';
-
-        ReceivePort _port = ReceivePort();
-
-        await Future.delayed(Duration(milliseconds: 300));
-        var imgFile = await _cameraController!.takePicture();
-        await imgFile.saveTo(imgPath);
-
-        await FlutterIsolate.spawn<Map<String, dynamic>>(_compressFile, {
-          'path': imgPath,
-          'outPath': imgCopressedPath,
-          'port': _port.sendPort
-        });
-
-        String compressedFile = await _port.first;
-
-        _port.close();
-
-        LoadingOverlay.removeLoadingOverlay();
-        _isTakePhoto = false;
-        _onCapture(compressedFile);
-      } catch (err) {
-        _isTakePhoto = false;
-        _onError(err);
-      }
-    }
-  }
-
-  @override
-  void initState() {
-    WidgetsBinding.instance.addObserver(this);
-    super.initState();
-    try {
-      _initializeCamera();
-    } catch (err) {
-      _onError(err);
-    }
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    LoadingOverlay.removeLoadingOverlay();
-
-    _cameraController?.dispose();
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    // App state changed before we got the chance to initialize.
-    if (_cameraController == null ||
-        _cameraController?.value.isInitialized == false) {
-      return;
-    }
-    if (state == AppLifecycleState.inactive) {
-      _cameraController?.dispose();
-    } else if (state == AppLifecycleState.resumed) {
-      _initializeCamera();
-      // if (_cameraController != null) {
-      //   _cameraInitializer = _cameraController!.initialize();
-
-      //   _initializeCamera(null);
-      // }
-    }
-  }
+/// Only use with [FaceScannerScope]
+class LivenessView extends StatelessWidget {
+  const LivenessView();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      child: FutureBuilder(
-        future: _cameraInitializer,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.done &&
-              _cameraController?.value.isInitialized == true) {
-            var cameraInfo = CameraInfo(
-                widget.cameraLensType,
-                _cameraController?.value.aspectRatio ?? 1.0,
-                _cameraController?.value.previewSize ?? Size(1, 1));
-            return Stack(
-              children: <Widget>[
-                Center(child: CameraPreview(_cameraController!)),
-                _overlayBuilder(context),
-                Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 20,
-                    child:
-                        _captureButtonBuilder(context, _takePhoto, cameraInfo))
-              ],
-            );
-          }
-          if (snapshot.hasError) {
-            return _errorBuilder(context);
-          }
-          return _errorBuilder(context);
-        },
-      ),
-    );
-  }
+    final FaceScannerState state = FaceScannerScope.of(context).state;
 
-  Widget _errorBuilder(context) {
-    if (widget.errorBuilder != null) {
-      return widget.errorBuilder!(context);
+    if (state.isInitial) {
+      return Center(
+        child: CircularProgressIndicator(),
+      );
+    } else if (state.isFail) {
+      return GestureDetector(
+        onTap: () {
+          print(FaceScannerScope.of(context)
+              .scanner
+              .controller
+              ?.value
+              .isInitialized);
+          print(FaceScannerScope.of(context)
+              .scanner
+              .controller
+              ?.value
+              .isPreviewPaused);
+          print(FaceScannerScope.of(context)
+              .scanner
+              .controller
+              ?.value
+              .isRecordingPaused);
+          print(FaceScannerScope.of(context)
+              .scanner
+              .controller
+              ?.value
+              .isRecordingVideo);
+          print(FaceScannerScope.of(context)
+              .scanner
+              .controller
+              ?.value
+              .isStreamingImages);
+          print(FaceScannerScope.of(context)
+              .scanner
+              .controller
+              ?.value
+              .isTakingPicture);
+        },
+        child: Center(
+          child: Text(state.exception.toString()),
+        ),
+      );
     } else {
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      final CameraController? controller =
+          FaceScannerScope.of(context).controller;
+      final Size? previewSize = FaceScannerScope.of(context).previewSize;
+
+      // if (isAndroid) {
+      //   final bool isRecording = controller.value.isRecordingVideo;
+      //   if (isRecording) {
+      //     final double aspectRatio =
+      //         1 / (previewSize.height / previewSize.width);
+
+      //     cameraView = Center(
+      //         child: Transform.rotate(
+      //       alignment: Alignment.center,
+      //       angle: math.pi / 2,
+      //       child: AspectRatio(
+      //         aspectRatio: aspectRatio,
+      //         child: CameraPreview(
+      //           controller,
+      //           child: Container(height: 100, width: 100),
+      //         ),
+      //       ),
+      //     ));
+      //   } else {
+      //     final double aspectRatio = previewSize.height / previewSize.width;
+
+      //     cameraView = Center(
+      //         child: AspectRatio(
+      //       aspectRatio: aspectRatio,
+      //       child: CameraPreview(controller),
+      //     ));
+      //   }
+      // } else {
+      //   final double aspectRatio = previewSize.height / previewSize.width;
+
+      //   cameraView = Center(
+      //       child: AspectRatio(
+      //     aspectRatio: aspectRatio,
+      //     child: CameraPreview(controller),
+      //   ));
+      // }
+      if (controller == null || previewSize == null) {
+        return SizedBox();
+      }
+
+      final double aspectRatio = previewSize.height / previewSize.width;
+
+      final Widget cameraView = Center(
+          child: AspectRatio(
+        aspectRatio: aspectRatio,
+        child: CameraPreview(controller),
+      ));
+
+      return Stack(
         children: <Widget>[
-          Center(
-            child: Text(
-              'Произошла ошибка при инициализации камеры. Возможно вы не дали нужные разрешения!',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.red),
-            ),
-          )
+          cameraView,
+          StreamBuilder<ProcessResponse>(
+            stream: FaceScannerScope.of(context).processStream,
+            builder: (context, snapshot) {
+              if (snapshot.hasData) {
+                final Size imageSize = snapshot.data!.imageSize!;
+                final ProcessResponse data = snapshot.data!;
+                return CameraOverlay(
+                  imageSize: imageSize,
+                  boundaryBox: data.faceBoundaryBox,
+                  color: data.inOval ? Colors.green : Colors.red,
+                  size: previewSize,
+                );
+              }
+              return SizedBox();
+            },
+          ),
+          // StreamBuilder<ProcessModel>(
+          //   stream: FaceScannerScope.of(context).cameraStream,
+          //   builder: (context, snapshot) {
+          //     if (snapshot.hasData) {
+          //       final CameraImage? image = snapshot.data?.image;
+
+          //       if (image?.planes.length == 1) {
+          //         return Container(
+          //           width: 200,
+          //           child: Image.memoryx(image!.planes.first.bytes),
+          //         );
+          //       }
+          //       return SizedBox();
+          //     }
+          //     return SizedBox();
+          //   },
+          // ),
         ],
       );
     }
   }
+}
 
-  Widget _overlayBuilder(context) {
-    if (widget.overlayBuilder != null) {
-      return widget.overlayBuilder!(context);
-    } else {
-      return SizedBox(
-        height: 0,
-        width: 0,
-      );
+enum CameraOverlaType {
+  initial,
+  focus,
+  success,
+  error,
+}
+
+class DynamicFaceBoundaryBox extends StatelessWidget {
+  final Rect? boundaryBox;
+  final Color? color;
+  final Size imageSize;
+  final Size size;
+  const DynamicFaceBoundaryBox({
+    super.key,
+    required this.size,
+    required this.imageSize,
+    this.boundaryBox,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: size,
+      painter: FaceBoundaryPainter(
+        boundaryBox: boundaryBox,
+        imageSize: imageSize,
+        color: color,
+      ),
+    );
+  }
+}
+
+class FaceBoundaryPainter extends CustomPainter {
+  final Rect? boundaryBox;
+  final Color? color;
+  final Size imageSize;
+  const FaceBoundaryPainter({
+    required this.imageSize,
+    this.boundaryBox,
+    this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color ?? Colors.black
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4;
+
+    if (boundaryBox != null) {
+      final rect = transformRect(boundaryBox!, imageSize, size);
+
+      canvas.drawOval(rect, paint);
     }
   }
 
-  Widget _captureButtonBuilder(
-      BuildContext context, VoidCallback onCapture, CameraInfo cameraInfo) {
-    if (widget.captureButtonBuilder != null) {
-      return widget.captureButtonBuilder!(context, onCapture, cameraInfo);
-    } else {
-      return SizedBox(
-        height: 0,
-        width: 0,
-      );
-    }
+  @override
+  bool shouldRepaint(FaceBoundaryPainter oldDelegate) =>
+      oldDelegate.boundaryBox != boundaryBox ||
+      oldDelegate.imageSize != imageSize;
+}
+
+class CameraOverlay extends StatelessWidget {
+  final CameraOverlaType type;
+  final Rect? boundaryBox;
+  final Color? color;
+  final Size size;
+  final Size imageSize;
+
+  const CameraOverlay({
+    super.key,
+    required this.size,
+    required this.imageSize,
+    this.boundaryBox,
+    this.color,
+    this.type = CameraOverlaType.initial,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        CustomPaint(
+          size: size,
+          painter: OverlayPainter(),
+        ),
+        AnimatedBoundaryBox(
+          duration: Duration(milliseconds: 500),
+          size: size,
+          color: color,
+          imageSize: imageSize,
+          boundaryBox: boundaryBox,
+        ),
+      ],
+    );
+  }
+}
+
+class AnimatedBoundaryBox extends ImplicitlyAnimatedWidget {
+  final Size size;
+  final Size imageSize;
+  final Rect? boundaryBox;
+  final Color? color;
+  const AnimatedBoundaryBox({
+    super.key,
+    required super.duration,
+    required this.imageSize,
+    required this.size,
+    this.boundaryBox,
+    this.color,
+  });
+
+  @override
+  AnimatedWidgetBaseState<AnimatedBoundaryBox> createState() =>
+      _AnimatedBoundaryBoxState();
+}
+
+class _AnimatedBoundaryBoxState
+    extends AnimatedWidgetBaseState<AnimatedBoundaryBox> {
+  RectTween? _boundaryBox;
+  ColorTween? _color;
+
+  @override
+  void forEachTween(TweenVisitor<dynamic> visitor) {
+    _boundaryBox = visitor(_boundaryBox, widget.boundaryBox,
+        (dynamic value) => RectTween(begin: value as Rect)) as RectTween?;
+    _color = visitor(_color, widget.color,
+        (dynamic value) => ColorTween(begin: value as Color)) as ColorTween?;
   }
 
-  void _onError(error) {
-    if (widget.onError != null) {
-      widget.onError!(error);
-    }
+  @override
+  Widget build(BuildContext context) {
+    final Animation<double> animation = this.animation;
+    return DynamicFaceBoundaryBox(
+      size: widget.size,
+      imageSize: widget.imageSize,
+      boundaryBox: _boundaryBox?.evaluate(animation),
+      color: _color?.evaluate(animation),
+    );
+  }
+}
+
+class OverlayPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double overlaylRelativeWidth = MlkitProvider.ovalRelativeWidth;
+    final double overlayAspectRatio = MlkitProvider.ovalAspectRatio;
+    final double overlaylWidth = size.width * overlaylRelativeWidth;
+    final double overlaylHeight = overlaylWidth / overlayAspectRatio;
+    final Size ovalSize = Size(overlaylWidth, overlaylHeight);
+
+    final paint = Paint()
+      ..color = Colors.blue
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4;
+
+    final rect = Rect.fromCenter(
+        center: Offset(size.width / 2, size.height / 2),
+        width: ovalSize.width,
+        height: ovalSize.height);
+    canvas.drawOval(rect, paint);
   }
 
-  void _onCapture(path) {
-    var cameraInfo = CameraInfo(
-        widget.cameraLensType,
-        _cameraController?.value.aspectRatio ?? 1.0,
-        _cameraController?.value.previewSize ?? Size(1, 1));
-    widget.onCapture?.call(path, cameraInfo);
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return false;
   }
+}
 
-  CameraLensDirection _getCameraLensDirection(CameraLensType type) {
-    switch (type) {
-      case CameraLensType.CAMERA_FRONT:
-        return CameraLensDirection.front;
-      case CameraLensType.CAMERA_BACK:
-      default:
-        return CameraLensDirection.back;
-    }
-  }
+Rect transformRect(Rect rectX, Size sizeX, Size sizeY) {
+  final scaleX = sizeY.width / sizeX.width;
+  final scaleY = sizeY.height / sizeX.height;
+
+  return Rect.fromLTWH(
+    rectX.left * scaleX,
+    rectX.top * scaleY,
+    rectX.width * scaleX,
+    rectX.height * scaleY,
+  );
 }
