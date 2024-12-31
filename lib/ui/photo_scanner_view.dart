@@ -6,7 +6,9 @@ import 'package:flutter_face_mlkit/utils/photo_scanner.dart';
 class PhotoScannerView extends StatefulWidget {
   final String path;
   final VoidCallback? onRetry;
-  const PhotoScannerView({super.key, required this.path, this.onRetry});
+  final Function(String path)? onSuccess;
+  const PhotoScannerView(
+      {super.key, this.onSuccess, required this.path, this.onRetry});
 
   @override
   State<PhotoScannerView> createState() => _PhotoScannerViewState();
@@ -57,14 +59,17 @@ class _PhotoScannerViewState extends State<PhotoScannerView> {
                   onTap: widget.onRetry,
                 ),
                 _SuccessButton(
-                  onTap: () async {
-                    try {
-                      await _scanner.detect(widget.path);
-                    } catch (e) {
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(SnackBar(content: Text(e.toString())));
-                    }
-                  },
+                  onTap: widget.onSuccess != null
+                      ? () async {
+                          // try {
+                          //   await _scanner.detect(widget.path);
+                          // } catch (e) {
+                          //   ScaffoldMessenger.of(context)
+                          //       .showSnackBar(SnackBar(content: Text(e.toString())));
+                          // }
+                          widget.onSuccess!(widget.path);
+                        }
+                      : null,
                 ),
               ],
             ),
