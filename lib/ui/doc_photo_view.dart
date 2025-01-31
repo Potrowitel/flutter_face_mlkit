@@ -2,23 +2,31 @@ import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_face_mlkit/ui/doc_shape.dart';
 import 'package:flutter_face_mlkit/utils/camera_type.dart';
 import 'package:flutter_face_mlkit/utils/capture_button.dart';
+import 'package:image/image.dart' as img;
 
-class PhotoView extends StatefulWidget {
+class DocPhotoView extends StatefulWidget {
   final Function(File file) onCapture;
+  final Function(File file)? onCroppedImage;
   final CameraType cameraType;
-  const PhotoView({
+  final double aspectRatio;
+  final Widget? bottom;
+  const DocPhotoView({
     super.key,
     required this.onCapture,
+    this.onCroppedImage,
     this.cameraType = CameraType.front,
+    this.bottom,
+    this.aspectRatio = 1.586,
   });
 
   @override
-  State<PhotoView> createState() => _PhotoViewState();
+  State<DocPhotoView> createState() => _DocPhotoViewState();
 }
 
-class _PhotoViewState extends State<PhotoView> {
+class _DocPhotoViewState extends State<DocPhotoView> {
   late final AppLifecycleListener _appLifecycleListener;
 
   CameraController? _controller;
@@ -82,6 +90,33 @@ class _PhotoViewState extends State<PhotoView> {
     }
   }
 
+  void crop(String path) async {
+    img.Image? image = await img.decodeJpgFile(path);
+    if (image != null) {
+      Size imageSize = Size(image.width.toDouble(), image.height.toDouble());
+
+      double width = image.width * 0.9;
+      double height = width / widget.aspectRatio;
+
+      double y = (imageSize.height / 2) - (height / 2);
+      double x = (imageSize.width * 0.1) / 2;
+
+      await (img.Command()
+            ..image(image)
+            ..copyCrop(
+                x: x.ceil(),
+                y: y.ceil(),
+                width: width.ceil(),
+                height: height.ceil())
+            ..writeToFile(path))
+          .executeThread();
+
+      if (widget.onCroppedImage != null) {
+        widget.onCroppedImage!(File(path));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_controller?.value.isInitialized == true) {
@@ -90,6 +125,7 @@ class _PhotoViewState extends State<PhotoView> {
       final double mediaWidth = MediaQuery.sizeOf(context).width;
 
       double controllersHeight = (mediaHeight - (mediaWidth * aspectRatio)) / 2;
+
       if (controllersHeight < 110) {
         controllersHeight = 110;
       }
@@ -100,7 +136,31 @@ class _PhotoViewState extends State<PhotoView> {
           children: [
             Align(
               alignment: Alignment.center,
-              child: CameraPreview(_controller!),
+              child: CameraPreview(
+                _controller!,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return Stack(
+                      children: [
+                        DocOverlay(
+                          height: constraints.maxHeight,
+                          width: constraints.maxWidth,
+                          borderColor: Colors.white,
+                          aspectRatio: widget.aspectRatio,
+                          overlayColor:
+                              Color(0xFF292933).withValues(alpha: 0.6),
+                        ),
+                        if (widget.bottom != null)
+                          Positioned(
+                            top: constraints.maxHeight / 2 +
+                                (constraints.maxWidth / widget.aspectRatio) / 2,
+                            child: widget.bottom!,
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ),
             ),
             Align(
               alignment: Alignment.center,
@@ -111,36 +171,6 @@ class _PhotoViewState extends State<PhotoView> {
                   height: double.infinity,
                   width: double.infinity,
                   color: Colors.black,
-                ),
-              ),
-            ),
-            Align(
-              alignment: Alignment.topCenter,
-              child: Container(
-                constraints: BoxConstraints.expand(height: controllersHeight),
-                decoration: BoxDecoration(
-                  color: Color(0xFF1F2328),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Container(
-                      padding:
-                          EdgeInsets.symmetric(vertical: 2, horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(50),
-                      ),
-                      child: Text(
-                        'Сфотографируйте себя',
-                        style: TextStyle(
-                            fontSize: 16,
-                            color: Color(0xFF323232),
-                            fontWeight: FontWeight.w500),
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                  ],
                 ),
               ),
             ),
@@ -168,6 +198,9 @@ class _PhotoViewState extends State<PhotoView> {
                           });
                           XFile? file = await _controller?.takePicture();
                           if (file != null) {
+                            if (widget.onCroppedImage != null) {
+                              crop(file.path);
+                            }
                             widget.onCapture.call(File(file.path));
                           }
                           onCapture = false;
@@ -204,5 +237,46 @@ class _PhotoViewState extends State<PhotoView> {
         child: Center(child: CircularProgressIndicator()),
       );
     }
+  }
+}
+
+class DocOverlay extends StatelessWidget {
+  const DocOverlay({
+    super.key,
+    required double height,
+    required double width,
+    required this.aspectRatio,
+    this.overlayColor,
+    this.borderColor,
+  })  : _height = height,
+        _width = width;
+
+  final double _height;
+  final double _width;
+  final Color? overlayColor;
+  final Color? borderColor;
+
+  final double aspectRatio;
+
+  @override
+  Widget build(BuildContext context) {
+    final double width = _width * 0.9;
+
+    return Container(
+      decoration: ShapeDecoration(
+          shape: PassOverlayShape(
+        cutOutBottomOffset: 0,
+        aspectRatio: aspectRatio,
+        borderColor: borderColor,
+        cutOutHeight: width / aspectRatio,
+        cutOutWidth: width,
+        borderLength: width / 2,
+        borderWidth: 0.1,
+        overlayColor: overlayColor ?? const Color.fromRGBO(0, 0, 0, 80),
+      )),
+      padding: const EdgeInsets.symmetric(vertical: 28),
+      height: _height,
+      width: _width,
+    );
   }
 }

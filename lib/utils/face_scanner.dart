@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-// import 'package:camera/camera.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_face_mlkit/isolates/face_detection_isolate.dart';
@@ -42,8 +41,6 @@ class FaceScanner {
   bool get isInitialized => _camera?.value.isInitialized == true;
   CameraController? get controller => _camera;
 
- 
-
   Future<void> initial(CameraType type) async {
     if (_camera != null && initialized) {
       await dispose();
@@ -68,6 +65,7 @@ class FaceScanner {
 
     await _detector.spawn();
     await _camera?.initialize();
+    await _camera?.prepareForVideoRecording();
     await _camera?.setFlashMode(FlashMode.off);
     _detectorSub = _detector.listen(_faceDetectingListener);
     _faceSub = _streamFace.listen(_faceListen);
@@ -91,10 +89,9 @@ class FaceScanner {
     if (_camera == null || _camera?.value.isRecordingVideo == true) return;
     await _camera?.lockCaptureOrientation(DeviceOrientation.portraitUp);
 
-    await _camera?.startImageStream(_recordingListener);
-
-    // await _camera?.prepareForVideoRecording();
-    // await _camera?.startVideoRecording(onAvailable: _recordingListener);
+    // await _camera?.startImageStream(_recordingListener);
+    // await Future.delayed(Duration(seconds: 1));
+    await _camera?.startVideoRecording(onAvailable: _recordingListener);
   }
 
   void _recordingListener(CameraImage image) {

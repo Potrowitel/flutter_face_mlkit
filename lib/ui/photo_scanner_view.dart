@@ -7,8 +7,14 @@ class PhotoScannerView extends StatefulWidget {
   final String path;
   final VoidCallback? onRetry;
   final Function(String path)? onSuccess;
-  const PhotoScannerView(
-      {super.key, this.onSuccess, required this.path, this.onRetry});
+  final double aspectRatio;
+  const PhotoScannerView({
+    super.key,
+    this.onSuccess,
+    required this.path,
+    this.onRetry,
+    this.aspectRatio = 0.7,
+  });
 
   @override
   State<PhotoScannerView> createState() => _PhotoScannerViewState();
@@ -43,7 +49,7 @@ class _PhotoScannerViewState extends State<PhotoScannerView> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: AspectRatio(
-                  aspectRatio: 0.7,
+                  aspectRatio: widget.aspectRatio,
                   child: Image.file(
                     File(widget.path),
                     fit: BoxFit.cover,
