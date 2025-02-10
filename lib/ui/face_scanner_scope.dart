@@ -76,7 +76,6 @@ class FaceScannerScopeState extends State<FaceScannerScope> {
   }
 
   void _onLifecycleStateChange(AppLifecycleState state) async {
-    print('FUCK FUCK $state');
     if (_lifecyclestate == AppLifecycleState.resumed &&
         state == AppLifecycleState.inactive) {
       _stream.add(FaceScannerState.inactive());

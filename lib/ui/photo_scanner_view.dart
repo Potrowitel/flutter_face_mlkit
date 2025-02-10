@@ -1,19 +1,21 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_face_mlkit/utils/photo_scanner.dart';
+import 'package:flutter_face_mlkit/utils/mrz_scanner.dart';
 
 class PhotoScannerView extends StatefulWidget {
   final String path;
   final VoidCallback? onRetry;
-  final Function(String path)? onSuccess;
+  final Function(String path, {MrzModel? mrz})? onSuccess;
   final double aspectRatio;
+  final bool detectMrz;
   const PhotoScannerView({
     super.key,
     this.onSuccess,
     required this.path,
     this.onRetry,
     this.aspectRatio = 0.7,
+    this.detectMrz = false,
   });
 
   @override
@@ -21,12 +23,14 @@ class PhotoScannerView extends StatefulWidget {
 }
 
 class _PhotoScannerViewState extends State<PhotoScannerView> {
-  final PhotoScanner _scanner = PhotoScanner();
+  final MrzScanner _scanner = MrzScanner();
 
   @override
   void initState() {
     super.initState();
-    _scanner.initial();
+    if (widget.detectMrz) {
+      _scanner.initial();
+    }
   }
 
   @override
@@ -67,12 +71,11 @@ class _PhotoScannerViewState extends State<PhotoScannerView> {
                 _SuccessButton(
                   onTap: widget.onSuccess != null
                       ? () async {
-                          // try {
-                          //   await _scanner.detect(widget.path);
-                          // } catch (e) {
-                          //   ScaffoldMessenger.of(context)
-                          //       .showSnackBar(SnackBar(content: Text(e.toString())));
-                          // }
+                          try {
+                            MrzModel mrz = await _scanner.detect(widget.path);
+                            widget.onSuccess!(widget.path, mrz: mrz);
+                            return;
+                          } catch (e) {}
                           widget.onSuccess!(widget.path);
                         }
                       : null,

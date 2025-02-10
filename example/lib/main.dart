@@ -43,7 +43,9 @@ class HomeScreen extends StatelessWidget {
                       onRetry: () {
                         pushToDoc(context, true);
                       },
+                      onSuccess: (path, {mrz}) {},
                       path: image.path,
+                      detectMrz: true,
                     ),
                   );
                 },
