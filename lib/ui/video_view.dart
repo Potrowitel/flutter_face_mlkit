@@ -4,11 +4,45 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_face_mlkit/utils/camera_type.dart';
+import 'package:flutter_face_mlkit/utils/resolution.dart';
+import 'package:video_compress/video_compress.dart';
 
 typedef OverlayBuilder = Function(
     BuildContext context, CameraController controller);
 
 typedef TimerBuilder = Function(BuildContext context, int count);
+
+enum VideoCompressQuality {
+  DefaultQuality,
+  LowQuality,
+  MediumQuality,
+  HighestQuality,
+  Res640x480Quality,
+  Res960x540Quality,
+  Res1280x720Quality,
+  Res1920x1080Quality;
+
+  VideoQuality toVideoQuality() {
+    switch (this) {
+      case VideoCompressQuality.DefaultQuality:
+        return VideoQuality.DefaultQuality;
+      case VideoCompressQuality.LowQuality:
+        return VideoQuality.LowQuality;
+      case VideoCompressQuality.MediumQuality:
+        return VideoQuality.MediumQuality;
+      case VideoCompressQuality.HighestQuality:
+        return VideoQuality.HighestQuality;
+      case VideoCompressQuality.Res640x480Quality:
+        return VideoQuality.Res640x480Quality;
+      case VideoCompressQuality.Res960x540Quality:
+        return VideoQuality.Res960x540Quality;
+      case VideoCompressQuality.Res1280x720Quality:
+        return VideoQuality.Res1280x720Quality;
+      case VideoCompressQuality.Res1920x1080Quality:
+        return VideoQuality.Res1920x1080Quality;
+    }
+  }
+}
 
 class VideoView extends StatefulWidget {
   final Function(File file) onComplete;
@@ -16,6 +50,9 @@ class VideoView extends StatefulWidget {
   final OverlayBuilder? overlay;
   final int timer;
   final TimerBuilder? timerBuilder;
+  final Resolution resolution;
+  final bool compress;
+  final VideoCompressQuality compressQuality;
   const VideoView({
     super.key,
     required this.onComplete,
@@ -23,6 +60,9 @@ class VideoView extends StatefulWidget {
     this.timer = 20,
     this.timerBuilder,
     this.cameraType = CameraType.front,
+    this.resolution = Resolution.medium,
+    this.compress = false,
+    this.compressQuality = VideoCompressQuality.DefaultQuality,
   });
 
   @override
@@ -53,12 +93,30 @@ class _VideoViewState extends State<VideoView> {
   }
 
   void _listener() async {
-    if (_counterController.value == 0) {
-      XFile? file = await _controller?.stopVideoRecording();
-      if (file != null) {
-        widget.onComplete(File(file.path));
-        Navigator.of(context).pop(file.path);
+    if (_counterController.value <= 0) {
+      XFile? file;
+      if (_controller?.value.isRecordingVideo == true) {
+        file = await _controller?.stopVideoRecording();
+      } else {
+        return;
       }
+      if (widget.compress) {
+        _compressVideo(File(file!.path));
+      } else {
+        if (file != null) {
+          widget.onComplete(File(file.path));
+        }
+      }
+    }
+  }
+
+  void _compressVideo(File file) async {
+    final MediaInfo? mediaInfo = await VideoCompress.compressVideo(
+      file.path,
+      quality: widget.compressQuality.toVideoQuality(),
+    );
+    if (mediaInfo != null) {
+      widget.onComplete(File(mediaInfo.path!));
     }
   }
 
@@ -92,7 +150,7 @@ class _VideoViewState extends State<VideoView> {
       CameraDescription cameraDescription =
           findCamera(type: widget.cameraType, cameras: _cameras!);
       _controller = CameraController(
-          cameraDescription, ResolutionPreset.ultraHigh,
+          cameraDescription, widget.resolution.toResolution(),
           enableAudio: false);
       _controller!.initialize().then((_) {
         if (!mounted) {
@@ -114,6 +172,7 @@ class _VideoViewState extends State<VideoView> {
       return ColoredBox(
         color: Color(0xFF1F2328),
         child: Stack(
+          alignment: Alignment.center,
           children: [
             Align(
               alignment: Alignment.center,
@@ -194,7 +253,7 @@ class CloseButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(32),
         child: InkWell(
           onTap: () {
-            Navigator.of(context).pop();
+            Navigator.of(context).pop(false);
           },
           borderRadius: BorderRadius.circular(32),
           child: Icon(Icons.close, size: 18),

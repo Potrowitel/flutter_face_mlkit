@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_face_mlkit/ui/doc_shape.dart';
 import 'package:flutter_face_mlkit/utils/camera_type.dart';
 import 'package:flutter_face_mlkit/utils/capture_button.dart';
+import 'package:flutter_face_mlkit/utils/resolution.dart';
 import 'package:image/image.dart' as img;
 
 class DocPhotoView extends StatefulWidget {
@@ -12,13 +13,16 @@ class DocPhotoView extends StatefulWidget {
   final Function(File file)? onCroppedImage;
   final CameraType cameraType;
   final double aspectRatio;
+  final Resolution resolution;
   final Widget? bottom;
+
   const DocPhotoView({
     super.key,
     required this.onCapture,
     this.onCroppedImage,
     this.cameraType = CameraType.front,
     this.bottom,
+    this.resolution = Resolution.veryHigh,
     this.aspectRatio = 1.586,
   });
 
@@ -76,7 +80,7 @@ class _DocPhotoViewState extends State<DocPhotoView> {
       CameraDescription cameraDescription =
           findCamera(type: widget.cameraType, cameras: _cameras!);
       _controller = CameraController(
-          cameraDescription, ResolutionPreset.ultraHigh,
+          cameraDescription, widget.resolution.toResolution(),
           enableAudio: false);
       _controller!.initialize().then((_) {
         if (!mounted) {
@@ -112,7 +116,8 @@ class _DocPhotoViewState extends State<DocPhotoView> {
           .executeThread();
 
       if (widget.onCroppedImage != null) {
-        widget.onCroppedImage!(File(path));
+        File file = File(path);
+        widget.onCroppedImage!(file);
       }
     }
   }

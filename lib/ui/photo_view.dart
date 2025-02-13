@@ -4,14 +4,17 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_face_mlkit/utils/camera_type.dart';
 import 'package:flutter_face_mlkit/utils/capture_button.dart';
+import 'package:flutter_face_mlkit/utils/resolution.dart';
 
 class PhotoView extends StatefulWidget {
   final Function(File file) onCapture;
   final CameraType cameraType;
+  final Resolution resolution;
   const PhotoView({
     super.key,
     required this.onCapture,
     this.cameraType = CameraType.front,
+    this.resolution = Resolution.veryHigh,
   });
 
   @override
@@ -68,7 +71,7 @@ class _PhotoViewState extends State<PhotoView> {
       CameraDescription cameraDescription =
           findCamera(type: widget.cameraType, cameras: _cameras!);
       _controller = CameraController(
-          cameraDescription, ResolutionPreset.ultraHigh,
+          cameraDescription, widget.resolution.toResolution(),
           enableAudio: false);
       _controller!.initialize().then((_) {
         if (!mounted) {
