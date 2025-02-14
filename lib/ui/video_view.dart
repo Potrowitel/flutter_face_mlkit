@@ -253,7 +253,7 @@ class CloseButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(32),
         child: InkWell(
           onTap: () {
-            Navigator.of(context).pop(false);
+            Navigator.of(context).maybePop();
           },
           borderRadius: BorderRadius.circular(32),
           child: Icon(Icons.close, size: 18),

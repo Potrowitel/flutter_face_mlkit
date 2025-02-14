@@ -183,7 +183,7 @@ class _PhotoViewState extends State<PhotoView> {
                         padding: const EdgeInsets.only(right: 8),
                         child: IconButton(
                           onPressed: () {
-                            Navigator.of(context).pop();
+                            Navigator.of(context).maybePop();
                           },
                           icon: Icon(
                             Icons.close_rounded,

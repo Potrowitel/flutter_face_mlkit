@@ -218,7 +218,7 @@ class _DocPhotoViewState extends State<DocPhotoView> {
                         padding: const EdgeInsets.only(right: 8),
                         child: IconButton(
                           onPressed: () {
-                            Navigator.of(context).pop();
+                            Navigator.of(context).maybePop();
                           },
                           icon: Icon(
                             Icons.close_rounded,
