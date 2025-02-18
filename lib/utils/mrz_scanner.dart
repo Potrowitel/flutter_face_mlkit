@@ -38,7 +38,7 @@ class MrzScanner {
             List<String> list = text.split('\n');
             if (list.isNotEmpty) {
               String text = list.first.replaceAll(RegExp('IDKGZ|<'), '');
-              number = text.substring(0, 10);
+              number = text.substring(0, 9);
               inn = text.substring(10);
             }
           }
